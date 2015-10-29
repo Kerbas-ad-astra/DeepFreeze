@@ -31,6 +31,8 @@ namespace DF
         internal bool UseAppLauncher { get; set; }
         internal bool debugging { get; set; }
         internal bool ECreqdForFreezer { get; set; }
+        internal bool fatalOption { get; set; }
+        internal float comatoseTime { get; set; }
         internal bool AutoRecoverFznKerbals { get; set; }
         internal float KSCcostToThawKerbal { get; set; }
         internal int ECReqdToFreezeThaw { get; set; }
@@ -58,13 +60,15 @@ namespace DF
         {
             DFwindowPosX = 40;
             DFwindowPosY = 50;
-            CFwindowPosX = 380;
-            CFwindowPosY = 50;
+            CFwindowPosX = 500;
+            CFwindowPosY = 140;
             DFKACwindowPosX = 600;
             DFKACwindowPosY = 50;
             UseAppLauncher = true;
             debugging = true;
             ECreqdForFreezer = true;
+            fatalOption = true;
+            comatoseTime = 300;
             AutoRecoverFznKerbals = true;
             KSCcostToThawKerbal = 10000f;
             ECReqdToFreezeThaw = 3000;
@@ -103,6 +107,8 @@ namespace DF
                 DFKACwindowPosX = Utilities.GetNodeValue(DFsettingsNode, "DFKACwindowPosX", DFKACwindowPosX);
                 DFKACwindowPosY = Utilities.GetNodeValue(DFsettingsNode, "DFKACwindowPosY", DFKACwindowPosY);
                 ECreqdForFreezer = Utilities.GetNodeValue(DFsettingsNode, "ECreqdForFreezer", ECreqdForFreezer);
+                fatalOption = Utilities.GetNodeValue(DFsettingsNode, "fatalOption", fatalOption);
+                comatoseTime = Utilities.GetNodeValue(DFsettingsNode, "comatoseTime", comatoseTime);
                 UseAppLauncher = Utilities.GetNodeValue(DFsettingsNode, "UseAppLauncher", UseAppLauncher);
                 debugging = Utilities.GetNodeValue(DFsettingsNode, "debugging", debugging);
                 AutoRecoverFznKerbals = Utilities.GetNodeValue(DFsettingsNode, "AutoRecoverFznKerbals", AutoRecoverFznKerbals);
@@ -150,6 +156,8 @@ namespace DF
             settingsNode.AddValue("DFKACwindowPosX", DFKACwindowPosX);
             settingsNode.AddValue("DFKACwindowPosY", DFKACwindowPosY);
             settingsNode.AddValue("ECreqdForFreezer", ECreqdForFreezer);
+            settingsNode.AddValue("fatalOption", fatalOption);
+            settingsNode.AddValue("comatoseTime", comatoseTime);
             settingsNode.AddValue("UseAppLauncher", UseAppLauncher);
             settingsNode.AddValue("debugging", debugging);
             settingsNode.AddValue("AutoRecoverFznKerbals", AutoRecoverFznKerbals);

@@ -20,6 +20,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using UnityEngine;
 
 namespace DF
@@ -48,6 +49,33 @@ namespace DF
                 }
             }
             Debug.Log("--------------------------------------");
+        }
+
+        // Use Reflection to get a field from an object
+        internal static object GetObjectField(object o, string fieldName)
+        {
+            object outputObj = new object();
+            bool foundObj = false;
+            foreach (FieldInfo field in o.GetType().GetFields())
+            {
+                if (!field.IsStatic)
+                {
+                    if (field.Name == fieldName)
+                    {
+                        foundObj = true;
+                        outputObj = field.GetValue(o);
+                        break;
+                    }
+                }
+            }
+            if (foundObj)
+            {
+                return outputObj;
+            }
+            else
+            {
+                return null;
+            }
         }
 
         // Dump all Unity Cameras
@@ -171,10 +199,6 @@ namespace DF
             {
                 Log_Debug("Kerbal " + kerbal.name + " " + kerbal.crewMemberName + " instance " + kerbal.GetInstanceID() + " rosterstatus " + kerbal.rosterStatus.ToString());
                 Log_Debug(kerbal.protoCrewMember == null ? "ProtoCrewmember is null " : "ProtoCrewmember exists " + kerbal.protoCrewMember.name);
-                if (kerbal.animation != null)
-                {
-                    dmpAnimationNames(kerbal.animation);
-                }
             }
         }
 
@@ -326,7 +350,7 @@ namespace DF
         // If bodyOnly is true only the "body01" mesh is changed (to be replaced by placeholder mesh lying down as kerbals in IVA are always in sitting position).
         internal static void setFrznKerbalLayer(ProtoCrewMember kerbal, bool setVisible, bool bodyOnly)
         {
-            Log_Debug("setFrznKerbalLayer " + kerbal.name + " visible " + setVisible);
+            //Log_Debug("setFrznKerbalLayer " + kerbal.name + " visible " + setVisible);
             int layer = 16;
             if (!setVisible)
             {
@@ -339,10 +363,10 @@ namespace DF
                 {
                     if (renderer.gameObject.layer == layer)
                     {
-                        Log_Debug("Layers already set");
+                        //Log_Debug("Layers already set");
                         break;
                     }
-                    Log_Debug("Renderer: " + renderer.name + " set to layer " + layer);
+                    //Log_Debug("Renderer: " + renderer.name + " set to layer " + layer);
                     renderer.gameObject.layer = layer;
                     if (setVisible) renderer.enabled = true;
                     else renderer.enabled = false;
@@ -353,52 +377,57 @@ namespace DF
         internal static void CheckPortraitCams(Vessel vessel)
         {
             // Only the pods in the active vessel should be doing it since the list refers to them.
-            Log_Debug("CheckPortraitCams");
-            if (vessel.isActiveVessel)
+            //Log_Debug("DeepFreeze CheckPortraitCams vessel " + vessel.name + "(" + vessel.id + ") activevessel " + FlightGlobals.ActiveVessel.name + "(" + FlightGlobals.ActiveVessel.id + ")");
+
+            // First, We check through the list of portaits and remove everyone who is from some other vessel, or NO vessel.
+            var stowaways = new List<Kerbal>();
+            foreach (Kerbal thatKerbal in KerbalGUIManager.ActiveCrew)
             {
-                // First, every pod should check through the list of portaits and remove everyone who is from some other vessel, or NO vessel.
-                var stowaways = new List<Kerbal>();
-                foreach (Kerbal thatKerbal in KerbalGUIManager.ActiveCrew)
+                if (thatKerbal.InPart == null)
                 {
-                    if (thatKerbal.InPart == null)
+                    //Log_Debug("kerbal " + thatKerbal.name + " Invessel = null add stowaway");
+                    stowaways.Add(thatKerbal);
+                }
+                else
+                {
+                    //Log_Debug("kerbal " + thatKerbal.name + " Invessel = " + thatKerbal.InVessel + " InvesselID = " + thatKerbal.InVessel.id);
+                    if (thatKerbal.InVessel.id != FlightGlobals.ActiveVessel.id)
                     {
+                        //Log_Debug("Adding stowaway");
                         stowaways.Add(thatKerbal);
                     }
-                    else
-                    {
-                        if (thatKerbal.InVessel != vessel)
-                        {
-                            stowaways.Add(thatKerbal);
-                        }
-                    }
                 }
-                foreach (Kerbal thatKerbal in stowaways)
-                {
-                    KerbalGUIManager.RemoveActiveCrew(thatKerbal);
-                }
-                // Then, every pod should check the list of seats in itself and see if anyone is missing who should be present.
+            }
+            foreach (Kerbal thatKerbal in stowaways)
+            {
+                KerbalGUIManager.RemoveActiveCrew(thatKerbal);
+            }
+
+            if (FlightGlobals.ActiveVessel.id == vessel.id)
+            {
+                // Then, Check the list of seats in every crewable part in the vessel and see if anyone is missing who should be present.
                 List<Part> crewparts = (from p in vessel.parts where (p.CrewCapacity > 0 && p.internalModel != null) select p).ToList();
                 foreach (Part part in crewparts)
                 {
-                    Log_Debug("Check Portraits for part " + part.name);
+                    //Log_Debug("Check Portraits for part " + part.name);
                     foreach (InternalSeat seat in part.internalModel.seats)
                     {
-                        Log_Debug("checking Seat " + seat.seatTransformName);
-                        if (seat.kerbalRef != null) Log_Debug("kerbalref=" + seat.kerbalRef.crewMemberName);
-                        else Log_Debug("Seat kerbalref is null");
+                        //Log_Debug("checking Seat " + seat.seatTransformName);
+                        //if (seat.kerbalRef != null) Log_Debug("kerbalref=" + seat.kerbalRef.crewMemberName);
+                        //else Log_Debug("Seat kerbalref is null");
                         if (seat.kerbalRef != null && !KerbalGUIManager.ActiveCrew.Contains(seat.kerbalRef))
                         {
-                            Log_Debug("Checking crewstatus " + seat.kerbalRef.protoCrewMember.rosterStatus + " " + seat.kerbalRef.protoCrewMember.type);
+                            //Log_Debug("Checking crewstatus " + seat.kerbalRef.protoCrewMember.rosterStatus + " " + seat.kerbalRef.protoCrewMember.type);
                             if (seat.kerbalRef.protoCrewMember.rosterStatus != ProtoCrewMember.RosterStatus.Dead || seat.kerbalRef.protoCrewMember.type != ProtoCrewMember.KerbalType.Unowned)
                             {
-                                Log_Debug("Adding missing Portrait for " + seat.kerbalRef.crewMemberName);
+                                //Log_Debug("Adding missing Portrait for " + seat.kerbalRef.crewMemberName);
                                 KerbalGUIManager.AddActiveCrew(seat.kerbalRef);
                             }
                         }
                     }
                 }
             }
-            else Log_Debug("Vessel is not active vessel");
+            //else Log_Debug("Vessel is not active vessel");
         }
 
         // The following method is taken from RasterPropMonitor as-is. Which is covered by GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007
@@ -456,6 +485,100 @@ namespace DF
             } while (animation.IsPlaying(name));
         }
 
+        internal static RuntimeAnimatorController kerbalIVAController;
+
+        internal static void subdueIVAKerbalAnimations(Kerbal kerbal)
+        {
+            try
+            {
+                foreach (Animator anim in kerbal.gameObject.GetComponentsInChildren<Animator>())
+                {
+                    if (anim.name == kerbal.name)
+                    {
+                        kerbalIVAController = anim.runtimeAnimatorController;
+                        RuntimeAnimatorController myController = anim.runtimeAnimatorController;
+                        AnimatorOverrideController myOverrideController = new AnimatorOverrideController();
+                        myOverrideController.runtimeAnimatorController = myController;
+                        myOverrideController["idle_animA_upWord"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animB"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animC"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animD_dance"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animE_drummingHelmet"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animI_drummingControls"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animJ_yo"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animJ_IdleLoopShort"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["idle_animK_footStretch"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["head_rotation_staringUp"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["head_rotation_longLookUp"] = myOverrideController["idle_animH_notDoingAnything"];
+                        myOverrideController["head_faceExp_fun_ohAh"] = myOverrideController["idle_animH_notDoingAnything"];
+                        // Put this line at the end because when you assign a controller on an Animator, unity rebinds all the animated properties
+                        anim.runtimeAnimatorController = myOverrideController;
+                        Log_Debug("Animator " + anim.name + " for " + kerbal.name + " subdued");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("DeepFreeze", " failed to subdue IVA animations for " + kerbal.name);
+                Debug.LogException(ex);
+            }
+        }
+
+        internal static void reinvigerateIVAKerbalAnimations(Kerbal kerbal)
+        {
+            foreach (Animator anim in kerbal.gameObject.GetComponentsInChildren<Animator>())
+            {
+                if (anim.name == kerbal.name)
+                {
+                    RuntimeAnimatorController myController = kerbalIVAController;
+                    AnimatorOverrideController myOverrideController = new AnimatorOverrideController();
+                    myOverrideController.runtimeAnimatorController = myController;
+                    // Put this line at the end because when you assign a controller on an Animator, unity rebinds all the animated properties
+                    anim.runtimeAnimatorController = myOverrideController;
+                    Log_Debug("Animator " + anim.name + " for " + kerbal.name + " reinvigerated");
+                }
+            }
+        }
+
+        internal static bool setComatoseKerbal(ProtoCrewMember crew, ProtoCrewMember.KerbalType type)
+        {
+            try
+            {
+                crew.type = type;
+                if (type == ProtoCrewMember.KerbalType.Crew)
+                {
+                    KerbalRoster.SetExperienceTrait(crew, "");
+                    ScreenMessages.PostScreenMessage(crew.name + " has recovered from emergency thaw and resumed normal duties.", 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                }
+                else
+                {
+                    KerbalRoster.SetExperienceTrait(crew, "Tourist");
+                    ScreenMessages.PostScreenMessage(crew.name + " has been emergency thawed and cannot perform duties for " + (DeepFreeze.Instance.DFsettings.comatoseTime / 60).ToString() +  " minutes.", 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                Log("DeepFreeze", " Failed to set " + crew.name + " to status of " + type.ToString() + " during emergency thaw processing.");
+                return false;
+            }
+            
+        }
+
+        // The following method is taken from Kerbal Alarm Clock as-is. Which is covered by MIT license.
+        internal static int getVesselIdx(Vessel vtarget)
+        {
+            for (int i = 0; i < FlightGlobals.Vessels.Count; i++)
+            {
+                if (FlightGlobals.Vessels[i].id == vtarget.id)
+                {
+                    Log_Debug("Found Target idx=" + i + " (" + vtarget.id.ToString() + ")");
+                    return i;
+                }
+            }
+            return -1;
+        }
+
         //Temperature
         internal static float KelvintoCelsius(float kelvin)
         {
@@ -493,6 +616,29 @@ namespace DF
             winpos.y = Mathf.Clamp(winpos.y, yMin, yMax);
 
             return winpos;
+        }
+
+        // The following method is taken from RasterPropMonitor as-is. Which is covered by GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007
+        public static string WordWrap(string text, int maxLineLength)
+        {
+            var sb = new StringBuilder();
+            char[] prc = { ' ', ',', '.', '?', '!', ':', ';', '-' };
+            char[] ws = { ' ' };
+
+            foreach (string line in text.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int currentIndex;
+                int lastWrap = 0;
+                do
+                {
+                    currentIndex = lastWrap + maxLineLength > line.Length ? line.Length : (line.LastIndexOfAny(prc, Math.Min(line.Length - 1, lastWrap + maxLineLength)) + 1);
+                    if (currentIndex <= lastWrap)
+                        currentIndex = Math.Min(lastWrap + maxLineLength, line.Length);
+                    sb.AppendLine(line.Substring(lastWrap, currentIndex - lastWrap).Trim(ws));
+                    lastWrap = currentIndex;
+                } while (currentIndex < line.Length);
+            }
+            return sb.ToString();
         }
 
         // Get Config Node Values out of a config node Methods
