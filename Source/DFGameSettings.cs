@@ -31,11 +31,11 @@ namespace DF
         // knownKACAlarms = all Kerbal Alarm Clock alarms that are associated with a DeppFreezer knownVessels entry
 
         public const string configNodeName = "DFGameSettings";
-        public bool Enabled { get; set; }
-        internal Dictionary<string, KerbalInfo> KnownFrozenKerbals { get; private set; }
-        internal Dictionary<Guid, VesselInfo> knownVessels { get; private set; }
-        internal Dictionary<uint, PartInfo> knownFreezerParts { get; private set; }
-        internal Dictionary<string, AlarmInfo> knownKACAlarms { get; private set; }
+        public bool Enabled;
+        internal Dictionary<string, KerbalInfo> KnownFrozenKerbals;
+        internal Dictionary<Guid, VesselInfo> knownVessels;
+        internal Dictionary<uint, PartInfo> knownFreezerParts;
+        internal Dictionary<string, AlarmInfo> knownKACAlarms;
 
         internal DFGameSettings()
         {
@@ -170,6 +170,22 @@ namespace DF
                 foreach (KeyValuePair<string, KerbalInfo> kerbal in KnownFrozenKerbals)
                 {
                     this.Log_Debug("Kerbal = " + kerbal.Key + " status = " + kerbal.Value.status + " type = " + kerbal.Value.type + " vesselID = " + kerbal.Value.vesselID);
+                }
+            }
+        }
+
+        internal void DmpKnownVessels()
+        {
+            this.Log("Dump of KnownVessels");
+            if (knownVessels.Count() == 0)
+            {
+                this.Log("KnownVessels is EMPTY.");
+            }
+            else
+            {
+                foreach (KeyValuePair<Guid, VesselInfo> vessel in knownVessels)
+                {
+                    this.Log("Vessel = " + vessel.Key + " Name = " + vessel.Value.vesselName + " crew = " + vessel.Value.numCrew + " frozencrew = " + vessel.Value.numFrznCrew);
                 }
             }
         }

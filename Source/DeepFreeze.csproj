@@ -36,7 +36,8 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\Assembly-CSharp.dll</HintPath>
     </Reference>
-    <Reference Include="DFInterface">
+    <Reference Include="DFInterface, Version=0.4.5792.35419, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\DFInterface\bin\Debug\DFInterface.dll</HintPath>
     </Reference>
     <Reference Include="SMInterface, Version=4.3.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -63,12 +64,14 @@
     <Compile Include="DFInstalledMods.cs" />
     <Compile Include="DFSettings.cs" />
     <Compile Include="DFIntMemory.cs" />
+    <Compile Include="DFWrapper.cs" />
     <Compile Include="EngineerReport.cs" />
     <Compile Include="InstallChecker.cs" />
     <Compile Include="KACWrapper.cs" />
     <Compile Include="PartInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="DeepFreezeGUI.cs" />
+    <None Include="RPMScreenDeepFreeze.cs" />
     <Compile Include="RTWrapper.cs" />
     <Compile Include="TRWrapper.cs" />
     <Compile Include="USIWrapper.cs" />
@@ -103,7 +106,7 @@ if %25ERRORLEVEL%25 == 1 (
 if exist "$(SolutionDir)..\$(ProjectName).zip" del "$(SolutionDir)..\$(ProjectName).zip"
    
 c:\7za\7za a -tzip -r  "$(SolutionDir)..\$(ProjectName).zip" "$(SolutionDir)..\GameData"
-c:\7za\7za d -r  -x!REPOSoftTech.png -x!Glykerol.png -x!DFtoolbar.png -x!DeepFreezeOff.png -x!DeepFreezeOn.png -x!alphaonly.png "$(SolutionDir)..\$(ProjectName).zip" "*.ddsified" "*.pdb" "*.mdb" "*.png"
+c:\7za\7za d -r  -x!REPOSoftTech.png -x!Glykerol.png -x!DFtoolbar.png -x!DeepFreezeOff.png -x!DeepFreezeOn.png -x!DeepFreezeEditor.png -x!alphaonly.png "$(SolutionDir)..\$(ProjectName).zip" "*.ddsified" "*.pdb" "*.mdb" "*.png"
 xcopy /E /Y "$(SolutionDir)..\GameData" "%25KSP_DIR%25\GameData"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

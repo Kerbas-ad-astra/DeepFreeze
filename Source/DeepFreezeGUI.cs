@@ -198,7 +198,7 @@ namespace DF
             else
             {
                 // Set up the stock toolbar
-                this.Log_Debug("Removing onGUIAppLauncher callbacks");
+                Utilities.Log("DeepFreezeGUI", "Removing onGUIAppLauncher callbacks");
                 GameEvents.onGUIApplicationLauncherReady.Remove(OnGUIAppLauncherReady);
                 if (this.stockToolbarButton != null)
                 {
@@ -444,7 +444,12 @@ namespace DF
                 GUILayout.BeginHorizontal();
                 VesselInfo vsl = DeepFreeze.Instance.DFgameSettings.knownVessels[frzr.Value.vesselID];
                 GUILayout.Label(vsl.vesselName, statusStyle, GUILayout.Width(DFvslWdthName));
-                GUILayout.Label(frzr.Value.PartName.Substring(0, 8), statusStyle, GUILayout.Width(DFvslPrtName));
+                string partname = string.Empty;
+                if (frzr.Value.PartName.Substring(8, 1) == "R")
+                    partname = frzr.Value.PartName.Substring(0, 9);
+                else
+                    partname = frzr.Value.PartName.Substring(0, 8);
+                GUILayout.Label(partname, statusStyle, GUILayout.Width(DFvslPrtName));
                 string TempVar;
                 if (DeepFreeze.Instance.DFsettings.TempinKelvin)
                 {
@@ -480,7 +485,7 @@ namespace DF
                                     {
                                         showSwitchVessel = true;
                                     }
-                                }                                    
+                                }
                                 break;
                             }
                     }
@@ -722,7 +727,7 @@ namespace DF
                                 }
                             }
                         }
-                    }                    
+                    }
                     GUILayout.EndHorizontal();
                     //}
                 }
@@ -763,7 +768,7 @@ namespace DF
                                 frzr.beginFreezeKerbal(crewMember);
                             }
                             GUI.enabled = true;
-                        }                        
+                        }
                         GUILayout.EndHorizontal();
                     }
                 }
@@ -1417,7 +1422,7 @@ namespace DF
                         DFvslPrtElec = Mathf.Round((DFwindowPos.width - 28f) / 12.3f);
                         DFvslAlarms = Mathf.Round((DFwindowPos.width - 28f) / 8f);
                         DFvslLstUpd = Mathf.Round((DFwindowPos.width - 28f) / 5.5f);
-                        DFvslRT = Mathf.Round((DFwindowPos.width - 28f) / 12.3f);                        
+                        DFvslRT = Mathf.Round((DFwindowPos.width - 28f) / 12.3f);
                     }
                     else
                     {
