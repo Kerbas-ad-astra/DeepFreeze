@@ -19,18 +19,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using RSTUtils;
 using UnityEngine;
+using Random = System.Random;
+using KSP.UI.Screens;
+using RSTUtils.Extensions;
 
 namespace DF
 {
     internal class DeepFreezeGUI : MonoBehaviour, Savable
     {
         //GUI Properties
-        private bool gamePaused = false;
-
-        private IButton button1;
-        private ApplicationLauncherButton stockToolbarButton = null; // Stock Toolbar Button
-        private float DFWINDOW_WIDTH = 480;
+        internal AppLauncherToolBar DFMenuAppLToolBar;
+        private float DFWINDOW_WIDTH = 560;
         private float CFWINDOW_WIDTH = 340;
         private float KACWINDOW_WIDTH = 485;
         private float VSWINDOW_WIDTH = 340;
@@ -45,10 +46,11 @@ namespace DF
         private static int KACwindowID = 2000001;
         private static int VSwindowID = 2000002;
         private static int VSFwindowID = 2000003;
-        private GUIStyle statusStyle, frozenStyle, comaStyle, sectionTitleStyle, resizeStyle, StatusOKStyle, StatusWarnStyle, StatusRedStyle, StatusGrayStyle, ButtonStyle;
-        private Vector2 GUIscrollViewVector, GUIscrollViewVector2, GUIscrollViewVectorKAC, GUIscrollViewVectorKACKerbals = Vector2.zero;
-        private bool mouseDownDF = false;
-        private bool mouseDownKAC = false;
+        private Vector2 GUIscrollViewVector, GUIscrollViewVector2, GUIscrollViewVectorSettings,
+            GUIscrollViewVectorKAC, GUIscrollViewVectorKACKerbals = Vector2.zero;
+        private bool mouseDownDF;
+        private bool mouseDownCF;
+        private bool mouseDownKAC;
         private float DFtxtWdthName;
         private float DFtxtWdthProf;
         private float DFtxtWdthVslN;
@@ -69,45 +71,45 @@ namespace DF
         private float DFvslLstUpd;
         private float DFvslRT;
 
-        private bool showKACGUI = false;
-        private bool showConfigGUI = false;
+        private bool showKACGUI;
+        private bool showConfigGUI;
         private bool LoadConfig = true;
-        private bool ModKACAlarm = false;
+        private bool ModKACAlarm;
         private KACWrapper.KACAPI.KACAlarm KACalarmMod;
         private List<string> KACAlarm_FrzKbls = new List<string>();
         private List<string> KACAlarm_ThwKbls = new List<string>();
 
         //settings vars for GUI
-        private bool InputVautoRecover = false;
-
-        private bool InputVdebug = false;
-        private bool InputVECReqd = false;
+        private bool InputVautoRecover;
+        private bool InputVdebug;
+        private bool InputVToolTips;
+        private bool InputVECReqd;
         private bool InputAppL = true;
         private string InputScostThawKerbal = "";
-        private float InputVcostThawKerbal = 0f;
+        private float InputVcostThawKerbal;
         private string InputSecReqdToFreezeThaw = "";
-        private int InputVecReqdToFreezeThaw = 0;
+        private int InputVecReqdToFreezeThaw;
         private string InputSglykerolReqdToFreeze = "";
-        private int InputVglykerolReqdToFreeze = 0;
-        private bool InputVRegTempReqd = false;
+        private int InputVglykerolReqdToFreeze;
+        private bool InputVRegTempReqd;
         private string InputSRegTempFreeze = "";
-        private double InputVRegTempFreeze = 0f;
+        private double InputVRegTempFreeze;
         private string InputSRegTempMonitor = "";
-        private double InputVRegTempMonitor = 0f;
+        private double InputVRegTempMonitor;
         private string InputSheatamtMonitoringFrznKerbals = "";
-        private double InputVheatamtMonitoringFrznKerbals = 0f;
+        private double InputVheatamtMonitoringFrznKerbals;
         private string InputSheatamtThawFreezeKerbal = "";
-        private double InputVheatamtThawFreezeKerbal = 0f;
+        private double InputVheatamtThawFreezeKerbal;
         private bool InputVTempinKelvin = true;
         private bool InputStripLightsOn = true;
-        private bool InputfatalOption = false;
+        private bool InputfatalOption;
         private string InputScomatoseTime = "";
-        private float InputVcomatoseTime = 0f;
+        private float InputVcomatoseTime;
 
         //Settings vars
         private bool ECreqdForFreezer;
-
         private bool debugging;
+        private bool ToolTips;
         private bool AutoRecoverFznKerbals;
         private float KSCcostToThawKerbal;
         private int ECReqdToFreezeThaw;
@@ -123,171 +125,87 @@ namespace DF
         private bool StripLightsOn;
 
         //SwitchVessel vars
-        private bool showUnabletoSwitchVessel = false;
-
-        private bool showSwitchVessel = false;
-        private bool switchVesselManual = false;
+        private bool showUnabletoSwitchVessel;
+        private bool showSwitchVessel;
+        private bool switchVesselManual;
         private string showSwitchVesselStr = string.Empty;
         private Vessel switchVessel;
-        private double switchVesselManualTimer = 0d;
-        private bool chgECHeatsettings = false;
-        private double chgECHeatsettingsTimer = 0d;
-
-        //GuiVisibility
-        private bool _Visible = false;
-
-        public Boolean GuiVisible
-        {
-            get { return _Visible; }
-            set
-            {
-                _Visible = value;      //Set the private variable
-                if (_Visible)
-                {
-                    RenderingManager.AddToPostDrawQueue(3, this.onDraw);
-                }
-                else
-                {
-                    RenderingManager.RemoveFromPostDrawQueue(3, this.onDraw);
-                }
-            }
-        }
-
-        public bool Useapplauncher = false;
-
-        #region AppLauncher
-
-        private void OnGUIAppLauncherReady()
-        {
-            this.Log_Debug("OnGUIAppLauncherReady");
-            if (ApplicationLauncher.Ready)
-            {
-                this.Log_Debug("Adding AppLauncherButton");
-                this.stockToolbarButton = ApplicationLauncher.Instance.AddModApplication(
-                    onAppLaunchToggle,
-                    onAppLaunchToggle,
-                    DummyVoid,
-                    DummyVoid,
-                    DummyVoid,
-                    DummyVoid,
-                    ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.FLIGHT |
-                                          ApplicationLauncher.AppScenes.MAPVIEW | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB |
-                                          ApplicationLauncher.AppScenes.TRACKSTATION,
-                                          (Texture)GameDatabase.Instance.GetTexture("REPOSoftTech/DeepFreeze/Icons/DeepFreezeOff", false));
-            }
-        }
-
-        private void DummyVoid()
-        {
-        }
-
-        private void onAppLaunchToggle()
-        {
-            GuiVisible = !GuiVisible;
-            this.stockToolbarButton.SetTexture((Texture)GameDatabase.Instance.GetTexture(GuiVisible ? "REPOSoftTech/DeepFreeze/Icons/DeepFreezeOn" : "REPOSoftTech/DeepFreeze/Icons/DeepFreezeOff", false));
-        }
-
-        #endregion AppLauncher
-
+        private double switchVesselManualTimer;
+        private bool chgECHeatsettings;
+        private double chgECHeatsettingsTimer;
+        
+        public bool Useapplauncher;
+        private double currentTime;
+        
         internal void OnDestroy()
         {
-            if (ToolbarManager.ToolbarAvailable && Useapplauncher == false)
-            {
-                button1.Destroy();
-            }
-            else
-            {
-                // Set up the stock toolbar
-                Utilities.Log("DeepFreezeGUI", "Removing onGUIAppLauncher callbacks");
-                GameEvents.onGUIApplicationLauncherReady.Remove(OnGUIAppLauncherReady);
-                if (this.stockToolbarButton != null)
-                {
-                    ApplicationLauncher.Instance.RemoveModApplication(this.stockToolbarButton);
-                    this.stockToolbarButton = null;
-                }
-            }
-            if (GuiVisible) GuiVisible = !GuiVisible;
-            GameEvents.onGamePause.Remove(GamePaused);
-            GameEvents.onGameUnpause.Remove(GameUnPaused);
+            DFMenuAppLToolBar.Destroy();
         }
 
         internal void Start()
         {
-            this.Log_Debug("DeepFreezeGUI startup");
-            windowID = new System.Random().Next();
-            CFwindowID = windowID + 1;
-            KACwindowID = CFwindowID + 1;
-            VSwindowID = KACwindowID + 1;
-            VSFwindowID = VSFwindowID + 1;
+            Utilities.Log_Debug("DeepFreezeGUI startup");
+            windowID = Utilities.getnextrandomInt();
+            CFwindowID = Utilities.getnextrandomInt();
+            KACwindowID = Utilities.getnextrandomInt();
+            VSwindowID = Utilities.getnextrandomInt();
+            VSFwindowID = Utilities.getnextrandomInt();
 
             DFwindowPos = new Rect(40, Screen.height / 2 - 100, DFWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
             CFwindowPos = new Rect(450, Screen.height / 2 - 100, CFWINDOW_WIDTH, 250);
             DFKACwindowPos = new Rect(600, Screen.height / 2 - 100, KACWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
-            DFVSwindowPos = new Rect(Screen.width / 2 - (VSWINDOW_WIDTH / 2), Screen.height / 2 - 100, VSWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
-            DFVSFwindowPos = new Rect(Screen.width / 2 - (VSWINDOW_WIDTH / 2), Screen.height / 2 - 100, VSWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
-            DFtxtWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) / 3.5f);
-            DFtxtWdthProf = Mathf.Round((DFWINDOW_WIDTH - 28f) / 4.8f);
-            DFtxtWdthVslN = Mathf.Round((DFWINDOW_WIDTH - 28f) / 3.5f);
+            DFVSwindowPos = new Rect(Screen.width / 2 - VSWINDOW_WIDTH / 2, Screen.height / 2 - 100, VSWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
+            DFVSFwindowPos = new Rect(Screen.width / 2 - VSWINDOW_WIDTH / 2, Screen.height / 2 - 100, VSWINDOW_WIDTH, WINDOW_BASE_HEIGHT);
+            DFtxtWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
+            DFtxtWdthProf = Mathf.Round((DFWINDOW_WIDTH - 28f) * .2f);
+            DFtxtWdthVslN = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
 
-            KACtxtWdthName = Mathf.Round((KACWINDOW_WIDTH - 38f) / 3.5f);
-            KACtxtWdthAtyp = Mathf.Round((KACWINDOW_WIDTH - 38f) / 6f);
-            KACtxtWdthATme = Mathf.Round((KACWINDOW_WIDTH - 38f) / 5f);
-            KACtxtWdthKName = Mathf.Round((KACWINDOW_WIDTH - 48f) / 3f);
-            KACtxtWdthKTyp = Mathf.Round((KACWINDOW_WIDTH - 48f) / 5f);
-            KACtxtWdthKTg1 = Mathf.Round((KACWINDOW_WIDTH - 48f) / 6f);
-            KACtxtWdthKTg2 = Mathf.Round((KACWINDOW_WIDTH - 48f) / 6f);
+            KACtxtWdthName = Mathf.Round((KACWINDOW_WIDTH - 38f) * .2f);
+            KACtxtWdthAtyp = Mathf.Round((KACWINDOW_WIDTH - 38f) * .1f);
+            KACtxtWdthATme = Mathf.Round((KACWINDOW_WIDTH - 38f) * .2f);
+            KACtxtWdthKName = Mathf.Round((KACWINDOW_WIDTH - 48f) * .2f);
+            KACtxtWdthKTyp = Mathf.Round((KACWINDOW_WIDTH - 48f) * .2f);
+            KACtxtWdthKTg1 = Mathf.Round((KACWINDOW_WIDTH - 48f) * .16f);
+            KACtxtWdthKTg2 = Mathf.Round((KACWINDOW_WIDTH - 48f) * .16f);
 
-            DFvslWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) / 4.2f);
-            DFvslPrtName = Mathf.Round((DFWINDOW_WIDTH - 28f) / 6.3f);
-            DFvslPrtTmp = Mathf.Round((DFWINDOW_WIDTH - 28f) / 11f);
-            DFvslPrtElec = Mathf.Round((DFWINDOW_WIDTH - 28f) / 12.3f);
-            DFvslAlarms = Mathf.Round((DFWINDOW_WIDTH - 28f) / 8f);
-            DFvslLstUpd = Mathf.Round((DFWINDOW_WIDTH - 28f) / 5.5f);
-            DFvslRT = Mathf.Round((DFWINDOW_WIDTH - 28f) / 12.3f);
-            // create toolbar button
+            DFvslWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
+            DFvslPrtName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .2f);
+            DFvslPrtTmp = Mathf.Round((DFWINDOW_WIDTH - 28f) * .1f);
+            DFvslPrtElec = Mathf.Round((DFWINDOW_WIDTH - 28f) * .1f);
+            DFvslAlarms = Mathf.Round((DFWINDOW_WIDTH - 28f) * .12f);
+            DFvslLstUpd = Mathf.Round((DFWINDOW_WIDTH - 28f) * .18f);
+            DFvslRT = Mathf.Round((DFWINDOW_WIDTH - 28f) * .12f);
 
-            if (ToolbarManager.ToolbarAvailable && Useapplauncher == false)
+            Utilities.setScaledScreen();
+            
+            DFMenuAppLToolBar = new AppLauncherToolBar("DeepFreeze", "DeepFreeze",
+                "REPOSoftTech/DeepFreeze/Icons/DFtoolbar",
+                ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.FLIGHT |
+                ApplicationLauncher.AppScenes.MAPVIEW | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB |
+                ApplicationLauncher.AppScenes.TRACKSTATION,
+                GameDatabase.Instance.GetTexture("REPOSoftTech/DeepFreeze/Icons/DeepFreezeOn", false),
+                GameDatabase.Instance.GetTexture("REPOSoftTech/DeepFreeze/Icons/DeepFreezeOff", false),
+                GameScenes.FLIGHT, GameScenes.EDITOR, GameScenes.SPACECENTER, GameScenes.TRACKSTATION);
+
+            //If Settings wants to use ToolBar mod, check it is installed and available. If not set the TST Setting to use Stock.
+            if (!ToolbarManager.ToolbarAvailable && Useapplauncher)
             {
-                button1 = ToolbarManager.Instance.add("DeepFreeze", "button1");
-                button1.TexturePath = "REPOSoftTech/DeepFreeze/Icons/DFtoolbar";
-                button1.ToolTip = "DeepFreeze";
-                button1.Visibility = new GameScenesVisibility(GameScenes.FLIGHT, GameScenes.EDITOR, GameScenes.SPACECENTER, GameScenes.TRACKSTATION);
-                button1.OnClick += (e) => GuiVisible = !GuiVisible;
+                Useapplauncher = true;
             }
-            else
-            {
-                // Set up the stock toolbar
-                this.Log_Debug("Adding onGUIAppLauncher callbacks");
-                if (ApplicationLauncher.Ready)
-                {
-                    OnGUIAppLauncherReady();
-                }
-                else
-                    GameEvents.onGUIApplicationLauncherReady.Add(OnGUIAppLauncherReady);
-            }
-            GameEvents.onGamePause.Add(GamePaused);
-            GameEvents.onGameUnpause.Add(GameUnPaused);
-            this.Log_Debug("DeepFreezeGUI END startup");
-        }
 
-        private void GamePaused()
-        {
-            gamePaused = true;
+            DFMenuAppLToolBar.Start(Useapplauncher);
+            
+            Utilities.Log_Debug("DeepFreezeGUI END startup");
         }
-
-        private void GameUnPaused()
-        {
-            gamePaused = false;
-        }
-
+        
         private void FixedUpdate()
         {
             if (Time.timeSinceLevelLoad < 2f) return; //Wait 2 seconds on level load before executing
 
             if (chgECHeatsettings)
             {
-                double time = Planetarium.GetUniversalTime();
-                if (time - chgECHeatsettingsTimer > 2)
+                currentTime = Planetarium.GetUniversalTime();
+                if (currentTime - chgECHeatsettingsTimer > 2)
                 {
                     chgECHeatsettings = false;
                 }
@@ -296,19 +214,21 @@ namespace DF
 
         #region GUI
 
-        private void onDraw()
+        private void OnGUI()
         {
+            if (!Textures.StylesSet)
+                Textures.SetupStyles();
+
             if (showSwitchVessel)
             {
-                if (!Utilities.WindowVisibile(DFVSwindowPos))
-                    Utilities.MakeWindowVisible(DFVSwindowPos);
+
+                DFVSwindowPos.ClampToScreen();
                 DFVSwindowPos = GUILayout.Window(VSwindowID, DFVSwindowPos, windowVS, "DeepFreeze Vessel Switch", GUILayout.ExpandWidth(false),
                     GUILayout.ExpandHeight(true), GUILayout.Width(320), GUILayout.MinHeight(100));
             }
             if (showUnabletoSwitchVessel && !switchVesselManual)
             {
-                if (!Utilities.WindowVisibile(DFVSFwindowPos))
-                    Utilities.MakeWindowVisible(DFVSFwindowPos);
+                DFVSFwindowPos.ClampToScreen();
                 DFVSFwindowPos = GUILayout.Window(VSFwindowID, DFVSFwindowPos, windowVSF, "DeepFreeze Vessel Switch Failed", GUILayout.ExpandWidth(false),
                     GUILayout.ExpandHeight(true), GUILayout.Width(320), GUILayout.MinHeight(100));
             }
@@ -320,15 +240,14 @@ namespace DF
                     switchVesselManual = false;
                 }
             }
-            if (!GuiVisible || gamePaused || FlightDriver.Pause)
+            if (!DFMenuAppLToolBar.GuiVisible || DFMenuAppLToolBar.gamePaused || DFMenuAppLToolBar.hideUI)
             {
                 return;
             }
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER || HighLogic.LoadedScene == GameScenes.TRACKSTATION || HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
                 GUI.skin = HighLogic.Skin;
-                if (!Utilities.WindowVisibile(DFwindowPos))
-                    Utilities.MakeWindowVisible(DFwindowPos);
+                DFwindowPos.ClampInsideScreen();
                 DFwindowPos = GUILayout.Window(windowID, DFwindowPos, windowDF, "DeepFreeze Kerbals", GUILayout.ExpandWidth(true),
                         GUILayout.ExpandHeight(true), GUILayout.MinWidth(200), GUILayout.MinHeight(250));
                 if (showConfigGUI)
@@ -338,6 +257,7 @@ namespace DF
                         InputAppL = Useapplauncher;
                         InputVECReqd = ECreqdForFreezer;
                         InputVdebug = debugging;
+                        InputVToolTips = ToolTips;
                         InputVautoRecover = AutoRecoverFznKerbals;
                         InputScostThawKerbal = KSCcostToThawKerbal.ToString();
                         InputSecReqdToFreezeThaw = ECReqdToFreezeThaw.ToString();
@@ -354,102 +274,57 @@ namespace DF
                         InputStripLightsOn = StripLightsOn;
                         LoadConfig = false;
                     }
-                    if (!Utilities.WindowVisibile(CFwindowPos))
-                        Utilities.MakeWindowVisible(CFwindowPos);
-                    CFwindowPos = GUILayout.Window(CFwindowID, CFwindowPos, windowCF, "DeepFreeze Settings", GUILayout.ExpandWidth(false),
-                        GUILayout.ExpandHeight(true), GUILayout.Width(320), GUILayout.MinHeight(100));
+                    CFwindowPos.ClampInsideScreen();
+                    CFwindowPos = GUILayout.Window(CFwindowID, CFwindowPos, windowCF, "DeepFreeze Settings", GUILayout.ExpandWidth(true),
+                        GUILayout.ExpandHeight(true), GUILayout.MinWidth(400), GUILayout.MinHeight(300));
                 }
                 if (showKACGUI)
                 {
-                    if (!Utilities.WindowVisibile(DFKACwindowPos))
-                        Utilities.MakeWindowVisible(DFKACwindowPos);
+                    DFKACwindowPos.ClampInsideScreen();
                     DFKACwindowPos = GUILayout.Window(KACwindowID, DFKACwindowPos, windowKAC, "DeepFreeze Alarms", GUILayout.ExpandWidth(true),
                         GUILayout.ExpandHeight(true), GUILayout.MinWidth(360), GUILayout.MinHeight(150));
                 }
             }
+
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.DrawToolTip();
         }
 
         private void windowDF(int id)
         {
-            //Init styles
-            sectionTitleStyle = new GUIStyle(GUI.skin.label);
-            sectionTitleStyle.alignment = TextAnchor.MiddleLeft;
-            sectionTitleStyle.stretchWidth = true;
-            sectionTitleStyle.normal.textColor = Color.blue;
-            sectionTitleStyle.fontStyle = FontStyle.Bold;
-
-            statusStyle = new GUIStyle(GUI.skin.label);
-            statusStyle.alignment = TextAnchor.MiddleLeft;
-            statusStyle.stretchWidth = true;
-            statusStyle.normal.textColor = Color.white;
-
-            frozenStyle = new GUIStyle(GUI.skin.label);
-            frozenStyle.alignment = TextAnchor.MiddleLeft;
-            frozenStyle.stretchWidth = true;
-            frozenStyle.normal.textColor = Color.cyan;
-
-            comaStyle = new GUIStyle(GUI.skin.label);
-            comaStyle.alignment = TextAnchor.MiddleLeft;
-            comaStyle.stretchWidth = true;
-            comaStyle.normal.textColor = Color.gray;
-
-            StatusOKStyle = new GUIStyle(GUI.skin.label);
-            StatusOKStyle.alignment = TextAnchor.MiddleLeft;
-            StatusOKStyle.stretchWidth = true;
-            StatusOKStyle.normal.textColor = Color.green;
-
-            StatusWarnStyle = new GUIStyle(GUI.skin.label);
-            StatusWarnStyle.alignment = TextAnchor.MiddleLeft;
-            StatusWarnStyle.stretchWidth = true;
-            StatusWarnStyle.normal.textColor = Color.yellow;
-
-            StatusRedStyle = new GUIStyle(GUI.skin.label);
-            StatusRedStyle.alignment = TextAnchor.MiddleLeft;
-            StatusRedStyle.stretchWidth = true;
-            StatusRedStyle.normal.textColor = Color.red;
-
-            StatusGrayStyle = new GUIStyle(GUI.skin.label);
-            StatusGrayStyle.alignment = TextAnchor.MiddleLeft;
-            StatusGrayStyle.stretchWidth = true;
-            StatusGrayStyle.normal.textColor = Color.gray;
-
-            resizeStyle = new GUIStyle(GUI.skin.button);
-            resizeStyle.alignment = TextAnchor.MiddleCenter;
-            resizeStyle.padding = new RectOffset(1, 1, 1, 1);
-
-            GUIContent closeContent = new GUIContent("X", "Close Window");
-            Rect closeRect = new Rect(DFwindowPos.width - 17, 4, 16, 16);
-            if (GUI.Button(closeRect, closeContent))
+            GUIContent closeContent = new GUIContent(Textures.BtnRedCross, "Close Window");
+            Rect closeRect = new Rect(DFwindowPos.width - 21, 4, 16, 16);
+            if (GUI.Button(closeRect, closeContent, Textures.ClosebtnStyle))
             {
-                onAppLaunchToggle();
+                DFMenuAppLToolBar.onAppLaunchToggle();
                 return;
             }
 
             GUIscrollViewVector2 = GUILayout.BeginScrollView(GUIscrollViewVector2, false, false, GUILayout.MaxHeight(140f));
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Vessel", sectionTitleStyle, GUILayout.Width(DFvslWdthName));
-            GUILayout.Label("Part", sectionTitleStyle, GUILayout.Width(DFvslPrtName));
-            GUILayout.Label("Tmp", sectionTitleStyle, GUILayout.Width(DFvslPrtTmp));
-            GUILayout.Label("EC", sectionTitleStyle, GUILayout.Width(DFvslPrtElec));
+            GUILayout.Label(new GUIContent("Vessel","Vessel Name"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslWdthName));
+            GUILayout.Label(new GUIContent("Part", "Part Name"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslPrtName));
+            GUILayout.Label(new GUIContent("Tmp", "Part Temperature Status"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslPrtTmp));
+            GUILayout.Label(new GUIContent("EC", "Electric Charge Status"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslPrtElec));
             if (DFInstalledMods.IsRTInstalled)
-                GUILayout.Label("R.T", sectionTitleStyle, GUILayout.Width(DFvslRT));
-            GUILayout.Label("Alarms", sectionTitleStyle, GUILayout.Width(DFvslAlarms));
-            GUILayout.Label("LastUpd", sectionTitleStyle, GUILayout.Width(DFvslLstUpd));
+                GUILayout.Label(new GUIContent("R.T", "Remote Tech Status"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslRT));
+            GUILayout.Label(new GUIContent("Alarms", "Press the button for Kerbal Alarm Clock Alarms assigned to this part"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslAlarms));
+            GUILayout.Label(new GUIContent("LastUpd", "The Time the part was last updated"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslLstUpd));
             if (DeepFreeze.Instance.DFsettings.ECreqdForFreezer)
-                GUILayout.Label("TimeRem", sectionTitleStyle, GUILayout.Width(DFvslLstUpd));
+                GUILayout.Label(new GUIContent("TimeRem", "Approx. time remaining before Electric Charge will run out"), Textures.sectionTitleLeftStyle, GUILayout.Width(DFvslLstUpd));
             GUILayout.EndHorizontal();
             foreach (KeyValuePair<uint, PartInfo> frzr in DeepFreeze.Instance.DFgameSettings.knownFreezerParts)
             {
                 GUILayout.BeginHorizontal();
                 VesselInfo vsl = DeepFreeze.Instance.DFgameSettings.knownVessels[frzr.Value.vesselID];
-                GUILayout.Label(vsl.vesselName, statusStyle, GUILayout.Width(DFvslWdthName));
+                GUILayout.Label(vsl.vesselName, Textures.statusStyle, GUILayout.Width(DFvslWdthName));
                 string partname = string.Empty;
                 if (frzr.Value.PartName.Substring(8, 1) == "R")
                     partname = frzr.Value.PartName.Substring(0, 9);
                 else
                     partname = frzr.Value.PartName.Substring(0, 8);
-                GUILayout.Label(partname, statusStyle, GUILayout.Width(DFvslPrtName));
+                GUILayout.Label(partname, Textures.statusStyle, GUILayout.Width(DFvslPrtName));
                 string TempVar;
                 if (DeepFreeze.Instance.DFsettings.TempinKelvin)
                 {
@@ -457,7 +332,7 @@ namespace DF
                 }
                 else
                 {
-                    TempVar = Utilities.KelvintoCelsius((float)frzr.Value.cabinTemp).ToString("###0") + "C";
+                    TempVar = Utilities.KelvintoCelsius(frzr.Value.cabinTemp).ToString("###0") + "C";
                 }
 
                 if (DeepFreeze.Instance.DFsettings.RegTempReqd && !chgECHeatsettings)
@@ -466,17 +341,17 @@ namespace DF
                     {
                         case FrzrTmpStatus.OK:
                             {
-                                GUILayout.Label(TempVar, StatusOKStyle, GUILayout.Width(DFvslPrtTmp));
+                                GUILayout.Label(TempVar, Textures.StatusOKStyle, GUILayout.Width(DFvslPrtTmp));
                                 break;
                             }
                         case FrzrTmpStatus.WARN:
                             {
-                                GUILayout.Label(TempVar, StatusWarnStyle, GUILayout.Width(DFvslPrtTmp));
+                                GUILayout.Label(TempVar, Textures.StatusWarnStyle, GUILayout.Width(DFvslPrtTmp));
                                 break;
                             }
                         case FrzrTmpStatus.RED:
                             {
-                                GUILayout.Label(TempVar, StatusRedStyle, GUILayout.Width(DFvslPrtTmp));
+                                GUILayout.Label(TempVar, Textures.StatusRedStyle, GUILayout.Width(DFvslPrtTmp));
                                 switchVessel = FlightGlobals.Vessels.Find(a => a.id == frzr.Value.vesselID);
                                 showSwitchVesselStr = "Vessel " + switchVessel.vesselName + " is Over-Heating.";
                                 if (HighLogic.LoadedSceneIsFlight)
@@ -492,20 +367,20 @@ namespace DF
                 }
                 else
                 {
-                    GUILayout.Label("OFF", StatusGrayStyle, GUILayout.Width(DFvslPrtTmp));
+                    GUILayout.Label("OFF", Textures.StatusGrayStyle, GUILayout.Width(DFvslPrtTmp));
                 }
 
                 if (DeepFreeze.Instance.DFsettings.ECreqdForFreezer && !chgECHeatsettings)
                 {
                     if (frzr.Value.numFrznCrew == 0)
                     {
-                        GUILayout.Label("S/BY", StatusOKStyle, GUILayout.Width(DFvslPrtElec));
+                        GUILayout.Label("S/BY", Textures.StatusOKStyle, GUILayout.Width(DFvslPrtElec));
                     }
                     else
                     {
                         if (frzr.Value.outofEC)
                         {
-                            GUILayout.Label("OUT", StatusRedStyle, GUILayout.Width(DFvslPrtElec));
+                            GUILayout.Label("OUT", Textures.StatusRedStyle, GUILayout.Width(DFvslPrtElec));
                             switchVessel = FlightGlobals.Vessels.Find(a => a.id == frzr.Value.vesselID);
                             showSwitchVesselStr = "Vessel " + switchVessel.vesselName + " is out of ElectricCharge.\n Situation Critical.";
                             if (HighLogic.LoadedSceneIsFlight)
@@ -520,7 +395,7 @@ namespace DF
                         {
                             if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.EClowCriticalTime)
                             {
-                                GUILayout.Label("ALRT", StatusRedStyle, GUILayout.Width(DFvslPrtElec));
+                                GUILayout.Label("ALRT", Textures.StatusRedStyle, GUILayout.Width(DFvslPrtElec));
                                 switchVessel = FlightGlobals.Vessels.Find(a => a.id == frzr.Value.vesselID);
                                 showSwitchVesselStr = "Vessel " + switchVessel.vesselName + " is almost out of ElectricCharge.";
                                 if (HighLogic.LoadedSceneIsFlight)
@@ -535,12 +410,12 @@ namespace DF
                             {
                                 if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.ECLowWarningTime)  // ONE HOUR OF EC WARNING
                                 {
-                                    //this.Log_Debug("Remaining EC time " + vsl.predictedECOut);
-                                    GUILayout.Label("LOW", StatusWarnStyle, GUILayout.Width(DFvslPrtElec));
+                                    // Utilities.Log_Debug("Remaining EC time " + vsl.predictedECOut);
+                                    GUILayout.Label("LOW", Textures.StatusWarnStyle, GUILayout.Width(DFvslPrtElec));
                                 }
                                 else
                                 {
-                                    GUILayout.Label("OK", StatusOKStyle, GUILayout.Width(DFvslPrtElec));
+                                    GUILayout.Label("OK", Textures.StatusOKStyle, GUILayout.Width(DFvslPrtElec));
                                 }
                             }
                         }
@@ -548,24 +423,24 @@ namespace DF
                 }
                 else
                 {
-                    GUILayout.Label("OFF", StatusGrayStyle, GUILayout.Width(DFvslPrtElec));
+                    GUILayout.Label("OFF", Textures.StatusGrayStyle, GUILayout.Width(DFvslPrtElec));
                 }
 
                 if (DFInstalledMods.IsRTInstalled)
                 {
                     if (DFInstalledMods.RTVesselConnected(frzr.Value.vesselID))
                     {
-                        GUILayout.Label("OK", StatusOKStyle, GUILayout.Width(DFvslRT));
+                        GUILayout.Label("OK", Textures.StatusOKStyle, GUILayout.Width(DFvslRT));
                     }
                     else
                     {
-                        GUILayout.Label("NC", StatusRedStyle, GUILayout.Width(DFvslRT));
+                        GUILayout.Label("NC", Textures.StatusRedStyle, GUILayout.Width(DFvslRT));
                     }
                 }
 
                 //if (DeepFreeze.Instance.DFgameSettings.knownKACAlarms.Where(e => (e.Value.VesselID == frzr.Value.vesselID) &&
                 //((e.Value.FrzKerbals.Count() > 0) || (e.Value.ThwKerbals.Count() > 0))).Count() > 0)
-                if (DeepFreeze.Instance.DFgameSettings.knownKACAlarms.Where(e => e.Value.VesselID == frzr.Value.vesselID).Count() > 0)
+                if (DeepFreeze.Instance.DFgameSettings.knownKACAlarms.Any(e => e.Value.VesselID == frzr.Value.vesselID))
                 {
                     //GUILayout.Label("Active", StatusOKStyle, GUILayout.Width(DFvslAlarms));
                     if (GUILayout.Button(new GUIContent("Alarm", "Go to Alarms"), GUILayout.Width(DFvslAlarms)))
@@ -575,14 +450,14 @@ namespace DF
                 }
                 else
                 {
-                    GUILayout.Label("    ", StatusGrayStyle, GUILayout.Width(DFvslAlarms));
+                    GUILayout.Label("    ", Textures.StatusGrayStyle, GUILayout.Width(DFvslAlarms));
                 }
 
                 if (HighLogic.LoadedSceneIsFlight)
                 {
                     if (frzr.Value.vesselID == FlightGlobals.ActiveVessel.id)
                     {
-                        GUILayout.Label("    ", StatusOKStyle, GUILayout.Width(DFvslLstUpd));
+                        GUILayout.Label("    ", Textures.StatusOKStyle, GUILayout.Width(DFvslLstUpd));
                     }
                     else
                     {
@@ -590,23 +465,23 @@ namespace DF
                         {
                             if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.EClowCriticalTime)
                             {
-                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusRedStyle, GUILayout.Width(DFvslLstUpd));
+                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusRedStyle, GUILayout.Width(DFvslLstUpd));
                             }
                             else
                             {
                                 if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.ECLowWarningTime)
                                 {
-                                    GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
+                                    GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
                                 }
                                 else
                                 {
-                                    GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusOKStyle, GUILayout.Width(DFvslLstUpd));
+                                    GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusOKStyle, GUILayout.Width(DFvslLstUpd));
                                 }
                             }
                         }
                         else
                         {
-                            GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusGrayStyle, GUILayout.Width(DFvslLstUpd));
+                            GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusGrayStyle, GUILayout.Width(DFvslLstUpd));
                         }
                     }
                 }
@@ -616,23 +491,23 @@ namespace DF
                     {
                         if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.EClowCriticalTime)
                         {
-                            GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusRedStyle, GUILayout.Width(DFvslLstUpd));
+                            GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusRedStyle, GUILayout.Width(DFvslLstUpd));
                         }
                         else
                         {
                             if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.ECLowWarningTime)
                             {
-                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
+                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
                             }
                             else
                             {
-                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusOKStyle, GUILayout.Width(DFvslLstUpd));
+                                GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusOKStyle, GUILayout.Width(DFvslLstUpd));
                             }
                         }
                     }
                     else
                     {
-                        GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), StatusGrayStyle, GUILayout.Width(DFvslLstUpd));
+                        GUILayout.Label(Utilities.FormatDateString(Planetarium.GetUniversalTime() - frzr.Value.timeLastElectricity), Textures.StatusGrayStyle, GUILayout.Width(DFvslLstUpd));
                     }
                 }
 
@@ -640,17 +515,17 @@ namespace DF
                 {
                     if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.EClowCriticalTime)
                     {
-                        GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), StatusRedStyle, GUILayout.Width(DFvslLstUpd));
+                        GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), Textures.StatusRedStyle, GUILayout.Width(DFvslLstUpd));
                     }
                     else
                     {
                         if (vsl.predictedECOut < DeepFreeze.Instance.DFsettings.ECLowWarningTime)
                         {
-                            GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
+                            GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), Textures.StatusWarnStyle, GUILayout.Width(DFvslLstUpd));
                         }
                         else
                         {
-                            GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), StatusOKStyle, GUILayout.Width(DFvslLstUpd));
+                            GUILayout.Label(Utilities.FormatDateString(vsl.predictedECOut), Textures.StatusOKStyle, GUILayout.Width(DFvslLstUpd));
                         }
                     }
                 }
@@ -667,22 +542,22 @@ namespace DF
             if (DeepFreeze.Instance.DFgameSettings.KnownFrozenKerbals.Count == 0)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("There are currently no Frozen Kerbals", frozenStyle);
+                GUILayout.Label("There are currently no Frozen Kerbals", Textures.frozenStyle);
                 GUILayout.EndHorizontal();
             }
             else
             {
                 Headers = true;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Kerbal Name", sectionTitleStyle, GUILayout.Width(DFtxtWdthName));
-                GUILayout.Label("Profession", sectionTitleStyle, GUILayout.Width(DFtxtWdthProf));
-                GUILayout.Label("Vessel Name", sectionTitleStyle, GUILayout.Width(DFtxtWdthVslN));
+                GUILayout.Label("Kerbal Name", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthName));
+                GUILayout.Label("Profession", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthProf));
+                GUILayout.Label("Vessel Name", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthVslN));
                 GUILayout.EndHorizontal();
                 List<KeyValuePair<string, KerbalInfo>> ThawKeysToDelete = new List<KeyValuePair<string, KerbalInfo>>();
                 foreach (KeyValuePair<string, KerbalInfo> kerbal in DeepFreeze.Instance.DFgameSettings.KnownFrozenKerbals)
                 {
                     GUILayout.BeginHorizontal();
-                    GUIStyle dispstyle = (kerbal.Value.type != ProtoCrewMember.KerbalType.Tourist ? frozenStyle : comaStyle);
+                    GUIStyle dispstyle = kerbal.Value.type != ProtoCrewMember.KerbalType.Tourist ? Textures.frozenStyle : Textures.comaStyle;
                     GUILayout.Label(kerbal.Key, dispstyle, GUILayout.Width(DFtxtWdthName));
                     GUILayout.Label(kerbal.Value.experienceTraitName, dispstyle, GUILayout.Width(DFtxtWdthProf));
                     GUILayout.Label(kerbal.Value.vesselName, dispstyle, GUILayout.Width(DFtxtWdthVslN));
@@ -718,8 +593,8 @@ namespace DF
                                 Vessel vessel = FlightGlobals.Vessels.Find(v => v.id == kerbal.Value.vesselID);
                                 if (vessel != null)
                                 {
-                                    this.Log_Debug("Cannot thaw, vessel still exists " + vessel.situation.ToString() + " at " + vessel.mainBody.bodyName);
-                                    ScreenMessages.PostScreenMessage("Cannot thaw " + kerbal.Key + " from KSC. Vessel still exists " + vessel.situation.ToString() + " at " + vessel.mainBody.bodyName, 5.0f, ScreenMessageStyle.UPPER_CENTER);
+                                    Utilities.Log_Debug("Cannot thaw, vessel still exists " + vessel.situation + " at " + vessel.mainBody.bodyName);
+                                    ScreenMessages.PostScreenMessage("Cannot thaw " + kerbal.Key + " from KSC. Vessel still exists " + vessel.situation + " at " + vessel.mainBody.bodyName, 5.0f, ScreenMessageStyle.UPPER_CENTER);
                                 }
                                 else
                                 {
@@ -742,9 +617,9 @@ namespace DF
                 if (!Headers)
                 {
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label("Kerbal Name", sectionTitleStyle, GUILayout.Width(DFtxtWdthName));
-                    GUILayout.Label("Profession", sectionTitleStyle, GUILayout.Width(DFtxtWdthProf));
-                    GUILayout.Label("Vessel Name", sectionTitleStyle, GUILayout.Width(DFtxtWdthVslN));
+                    GUILayout.Label("Kerbal Name", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthName));
+                    GUILayout.Label("Profession", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthProf));
+                    GUILayout.Label("Vessel Name", Textures.sectionTitleLeftStyle, GUILayout.Width(DFtxtWdthVslN));
                     GUILayout.EndHorizontal();
                     Headers = true;
                 }
@@ -753,12 +628,12 @@ namespace DF
                     foreach (ProtoCrewMember crewMember in frzr.part.protoModuleCrew.FindAll(a => a.type == ProtoCrewMember.KerbalType.Crew))
                     {
                         GUILayout.BeginHorizontal();
-                        GUILayout.Label(crewMember.name, statusStyle, GUILayout.Width(DFtxtWdthName));
-                        GUILayout.Label(crewMember.experienceTrait.Title, statusStyle, GUILayout.Width(DFtxtWdthProf));
-                        GUILayout.Label(frzr.part.vessel.vesselName, statusStyle, GUILayout.Width(DFtxtWdthVslN));
+                        GUILayout.Label(crewMember.name, Textures.statusStyle, GUILayout.Width(DFtxtWdthName));
+                        GUILayout.Label(crewMember.experienceTrait.Title, Textures.statusStyle, GUILayout.Width(DFtxtWdthProf));
+                        GUILayout.Label(frzr.part.vessel.vesselName, Textures.statusStyle, GUILayout.Width(DFtxtWdthVslN));
                         if (crewMember.type != ProtoCrewMember.KerbalType.Tourist)
                         {
-                            if (frzr.DFIcrewXferFROMActive || frzr.DFIcrewXferTOActive || (DFInstalledMods.SMInstalled && frzr.IsSMXferRunning())
+                            if (frzr.DFIcrewXferFROMActive || frzr.DFIcrewXferTOActive || (DFInstalledMods.IsSMInstalled && frzr.IsCrewXferRunning)
                                                         || frzr.IsFreezeActive || frzr.IsThawActive || (DFInstalledMods.IsRTInstalled && !DFInstalledMods.RTVesselConnected(DFIntMemory.Instance.ActVslID)))
                             {
                                 GUI.enabled = false;
@@ -776,11 +651,11 @@ namespace DF
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
 
-            GUILayout.Space(14);
+            GUILayout.Space(24);
             if (KACWrapper.AssemblyExists && KACWrapper.InstanceExists && KACWrapper.APIReady)
             {
                 GUIContent AlarmsContent = new GUIContent("Alarms", "KAC Alarms");
-                Rect AlarmsRect = new Rect(DFwindowPos.width - 90, DFwindowPos.height - 17, 70, 16);
+                Rect AlarmsRect = new Rect(DFwindowPos.width - 95, DFwindowPos.height - 22, 70, 20);
                 if (GUI.Button(AlarmsRect, AlarmsContent))
                 {
                     showKACGUI = !showKACGUI;
@@ -790,37 +665,30 @@ namespace DF
             if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
                 GUIContent settingsContent = new GUIContent("Settings", "Config Settings");
-                Rect settingsRect = new Rect(DFwindowPos.width - 165, DFwindowPos.height - 17, 70, 16);
+                Rect settingsRect = new Rect(DFwindowPos.width - 170, DFwindowPos.height - 22, 70, 20);
                 if (GUI.Button(settingsRect, settingsContent))
                 {
                     showConfigGUI = !showConfigGUI;
                 }
             }
+            
+            GUIContent resizeContent = new GUIContent(Textures.BtnResize, "Resize Window");
+            Rect resizeRect = new Rect(DFwindowPos.width - 21, DFwindowPos.height - 22, 16, 16);
+            GUI.Label(resizeRect, resizeContent, Textures.ResizeStyle);
 
-            GUIContent resizeContent = new GUIContent("R", "Resize Window");
-            Rect resizeRect = new Rect(DFwindowPos.width - 17, DFwindowPos.height - 17, 16, 16);
-            GUI.Label(resizeRect, resizeContent, resizeStyle);
             HandleResizeEventsDF(resizeRect);
+
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.SetTooltipText();
 
             GUI.DragWindow();
         }
 
         private void windowCF(int id)
         {
-            //Init styles
-            sectionTitleStyle = new GUIStyle(GUI.skin.label);
-            sectionTitleStyle.alignment = TextAnchor.MiddleCenter;
-            sectionTitleStyle.stretchWidth = true;
-            sectionTitleStyle.fontStyle = FontStyle.Bold;
-
-            statusStyle = new GUIStyle(GUI.skin.label);
-            statusStyle.alignment = TextAnchor.MiddleLeft;
-            statusStyle.stretchWidth = true;
-            statusStyle.normal.textColor = Color.white;
-
-            GUIContent closeContent = new GUIContent("X", "Close Window");
-            Rect closeRect = new Rect(CFwindowPos.width - 17, 4, 16, 16);
-            if (GUI.Button(closeRect, closeContent))
+            GUIContent closeContent = new GUIContent(Textures.BtnRedCross, "Close Window");
+            Rect closeRect = new Rect(CFwindowPos.width - 21, 4, 16, 16);
+            if (GUI.Button(closeRect, closeContent, Textures.ClosebtnStyle))
             {
                 showConfigGUI = false;
                 LoadConfig = true;
@@ -829,21 +697,23 @@ namespace DF
 
             GUILayout.BeginVertical();
 
+            GUIscrollViewVectorSettings = GUILayout.BeginScrollView(GUIscrollViewVectorSettings, false, false);
+
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("ElectricCharge Required to run Freezers", "If on, EC is required to run freezers"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("ElectricCharge Required to run Freezers", "If on, EC is required to run freezers"), Textures.statusStyle, GUILayout.Width(280));
             InputVECReqd = GUILayout.Toggle(InputVECReqd, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             if (!InputVECReqd) GUI.enabled = false;
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Fatal EC/Heat Option", "If on Kerbals will die if EC runs out or it gets too hot"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Fatal EC/Heat Option", "If on Kerbals will die if EC runs out or it gets too hot"), Textures.statusStyle, GUILayout.Width(280));
             InputfatalOption = GUILayout.Toggle(InputfatalOption, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
             GUI.enabled = true;
 
             if (InputfatalOption) GUI.enabled = false;
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Non Fatal Kerbal Comatose Time(in secs)", "The time in seconds a kerbal is comatose if fatal EC/Heat option is off"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Non Fatal Kerbal Comatose Time(in secs)", "The time in seconds a kerbal is comatose if fatal EC/Heat option is off"), Textures.statusStyle, GUILayout.Width(250));
             InputScomatoseTime = Regex.Replace(GUILayout.TextField(InputScomatoseTime, 5, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
             GUI.enabled = true;
@@ -854,12 +724,12 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("AutoRecover Frozen Kerbals at KSC", "If on, will AutoRecover Frozen Kerbals at the KSC and deduct the Cost from your funds"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("AutoRecover Frozen Kerbals at KSC", "If on, will AutoRecover Frozen Kerbals at the KSC and deduct the Cost from your funds"), Textures.statusStyle, GUILayout.Width(280));
             InputVautoRecover = GUILayout.Toggle(InputVautoRecover, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Cost to Thaw a Kerbal at KSC", "Amt of currency Reqd to Freeze a Kerbal from the KSC"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Cost to Thaw a Kerbal at KSC", "Amt of currency Reqd to Freeze a Kerbal from the KSC"), Textures.statusStyle, GUILayout.Width(250));
             InputScostThawKerbal = Regex.Replace(GUILayout.TextField(InputScostThawKerbal, 5, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
@@ -869,7 +739,7 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("ElecCharge Reqd to Freeze/Thaw a Kerbal", "Amt of ElecCharge Reqd to Freeze/Thaw a Kerbal"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("ElecCharge Reqd to Freeze/Thaw a Kerbal", "Amt of ElecCharge Reqd to Freeze/Thaw a Kerbal"), Textures.statusStyle, GUILayout.Width(250));
             InputSecReqdToFreezeThaw = Regex.Replace(GUILayout.TextField(InputSecReqdToFreezeThaw, 5, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
@@ -879,7 +749,7 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Glykerol Reqd to Freeze a Kerbal", "Amt of Glykerol used to Freeze a Kerbal, Overrides Part values"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Glykerol Reqd to Freeze a Kerbal", "Amt of Glykerol used to Freeze a Kerbal, Overrides Part values"), Textures.statusStyle, GUILayout.Width(250));
             InputSglykerolReqdToFreeze = Regex.Replace(GUILayout.TextField(InputSglykerolReqdToFreeze, 5, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
@@ -888,17 +758,17 @@ namespace DF
                 InputVglykerolReqdToFreeze = GlykerolReqdToFreeze;
             }
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Temps are in (K)elvin. (K) = (C)elcius + 273.15. (K) = ((F)arenheit + 459.67) × 5/9", "Get your calculator out"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Temps are in (K)elvin. (K) = (C)elcius + 273.15. (K) = ((F)arenheit + 459.67) × 5/9", "Get your calculator out"), Textures.statusStyle, GUILayout.Width(280));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Regulated Temperatures Required", "If on, Regulated Temps apply to freeze and keep Kerbals Frozen"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Regulated Temperatures Required", "If on, Regulated Temps apply to freeze and keep Kerbals Frozen"), Textures.statusStyle, GUILayout.Width(280));
             InputVRegTempReqd = GUILayout.Toggle(InputVRegTempReqd, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             if (!InputVRegTempReqd) GUI.enabled = false;
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Minimum Part Temp. for Freezer to Freeze (K)", "Minimum part temperature for Freezer to be able to Freeze"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Minimum Part Temp. for Freezer to Freeze (K)", "Minimum part temperature for Freezer to be able to Freeze"), Textures.statusStyle, GUILayout.Width(250));
             InputSRegTempFreeze = Regex.Replace(GUILayout.TextField(InputSRegTempFreeze, 3, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
             if (!double.TryParse(InputSRegTempFreeze, out InputVRegTempFreeze))
@@ -907,7 +777,7 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("maximum Part Temp. to Keep Kerbals Frozen (K)", "Maximum part temperature for Freezer to keep Kerbals frozen"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("maximum Part Temp. to Keep Kerbals Frozen (K)", "Maximum part temperature for Freezer to keep Kerbals frozen"), Textures.statusStyle, GUILayout.Width(250));
             InputSRegTempMonitor = Regex.Replace(GUILayout.TextField(InputSRegTempMonitor, 3, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
             if (!double.TryParse(InputSRegTempMonitor, out InputVRegTempMonitor))
@@ -916,7 +786,7 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Heat generated in thaw/freeze process (kW)", "Amount of thermal heat (kW) generated with each thaw/freeze process"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Heat generated in thaw/freeze process (kW)", "Amount of thermal heat (kW) generated with each thaw/freeze process"), Textures.statusStyle, GUILayout.Width(250));
             InputSheatamtThawFreezeKerbal = Regex.Replace(GUILayout.TextField(InputSheatamtThawFreezeKerbal, 3, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
             if (!double.TryParse(InputSheatamtThawFreezeKerbal, out InputVheatamtThawFreezeKerbal))
@@ -925,7 +795,7 @@ namespace DF
             }
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Equip. heat generated per frozen kerbal (kW) per minute", "Amount of thermal heat (kW) generated by equip. for each frozen kerbal"), statusStyle, GUILayout.Width(250));
+            GUILayout.Box(new GUIContent("Equip. heat generated per frozen kerbal (kW) per minute", "Amount of thermal heat (kW) generated by equip. for each frozen kerbal"), Textures.statusStyle, GUILayout.Width(250));
             InputSheatamtMonitoringFrznKerbals = Regex.Replace(GUILayout.TextField(InputSheatamtMonitoringFrznKerbals, 3, GUILayout.MinWidth(30.0F)), "[^.0-9]", "");  //you can play with the width of the text box
             GUILayout.EndHorizontal();
             if (!double.TryParse(InputSheatamtMonitoringFrznKerbals, out InputVheatamtMonitoringFrznKerbals))
@@ -936,29 +806,50 @@ namespace DF
             GUI.enabled = true;
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Show Part Temperature in Kelvin", "If on Part right click will show temp in Kelvin, if Off will show in Celcius"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Show Part Temperature in Kelvin", "If on Part right click will show temp in Kelvin, if Off will show in Celcius"), Textures.statusStyle, GUILayout.Width(280));
             InputVTempinKelvin = GUILayout.Toggle(InputVTempinKelvin, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Use Stock Launcher Icon (restart required)", "If on uses AppLauncher, If Off Uses Toolbar"), statusStyle, GUILayout.Width(280));
+            GUIContent btntext = new GUIContent("Use Stock Launcher Icon", "If on uses AppLauncher, If Off Uses Toolbar");
+            if (!ToolbarManager.ToolbarAvailable) //Toolbar not available or not installed
+            {
+                InputAppL = true;
+                btntext = new GUIContent("Toolbar Unavailable", "Cannot switch Icon between Toolbar and Stock as toolbar mod is unavailable");
+                GUI.enabled = false;
+            }
+            GUILayout.Box(btntext, Textures.statusStyle, GUILayout.Width(280));
             InputAppL = GUILayout.Toggle(InputAppL, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
+            GUI.enabled = true;
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Freezer Strip Lights On", "Turn off if you do not want the internal freezer strip lights to function"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Freezer Strip Lights On", "Turn off if you do not want the internal freezer strip lights to function"), Textures.statusStyle, GUILayout.Width(280));
             InputStripLightsOn = GUILayout.Toggle(InputStripLightsOn, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Box("Debug Mode", statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Debug Mode", "Turns Log Debuggin on and off to assist with problems at the expense of heavy performance overhead"), Textures.statusStyle, GUILayout.Width(280));
             InputVdebug = GUILayout.Toggle(InputVdebug, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button(new GUIContent("Save & Exit Settings", "Save & Exit Settings"), GUILayout.Width(155f)))
+            GUILayout.Box(new GUIContent("ToolTips", "Turn the Tooltips on and off"), Textures.statusStyle, GUILayout.Width(280));
+            InputVToolTips = GUILayout.Toggle(InputVToolTips, "", GUILayout.MinWidth(30.0F)); //you can play with the width of the text box
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndScrollView();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(new GUIContent("Save & Exit Settings", "Exit this menu and Save Settings"), GUILayout.Width(155f)))
             {
-                Useapplauncher = InputAppL;
+
+                if (Useapplauncher != InputAppL)
+                {
+                    Useapplauncher = InputAppL;
+                    DFMenuAppLToolBar.chgAppIconStockToolBar(Useapplauncher);
+                }
+                
                 if (ECreqdForFreezer != InputVECReqd)
                 {
                     chgECHeatsettings = true;
@@ -967,6 +858,8 @@ namespace DF
 
                 ECreqdForFreezer = InputVECReqd;
                 debugging = InputVdebug;
+                ToolTips = InputVToolTips;
+                
                 AutoRecoverFznKerbals = InputVautoRecover;
                 KSCcostToThawKerbal = InputVcostThawKerbal;
                 ECReqdToFreezeThaw = InputVecReqdToFreezeThaw;
@@ -989,81 +882,48 @@ namespace DF
                 ConfigNode tmpNode = new ConfigNode();
                 Save(tmpNode);
             }
-            if (GUILayout.Button(new GUIContent("Reset Settings", "Reset Settings"), GUILayout.Width(155f)))
+            if (GUILayout.Button(new GUIContent("Reset Settings", "Reload last saved settings and reset screen"), GUILayout.Width(155f)))
             {
                 LoadConfig = true;
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+
+            GUIContent resizeContent = new GUIContent(Textures.BtnResize, "Resize Window");
+            Rect resizeRect = new Rect(CFwindowPos.width - 21, CFwindowPos.height - 22, 16, 16);
+            GUI.Label(resizeRect, resizeContent, Textures.ResizeStyle);
+
+            HandleResizeEventsCF(resizeRect);
+
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.SetTooltipText();
             GUI.DragWindow();
         }
 
         private void windowKAC(int id)
         {
-            //Init styles
-            sectionTitleStyle = new GUIStyle(GUI.skin.label);
-            sectionTitleStyle.alignment = TextAnchor.MiddleLeft;
-            sectionTitleStyle.stretchWidth = true;
-            sectionTitleStyle.normal.textColor = Color.blue;
-            sectionTitleStyle.fontStyle = FontStyle.Bold;
-
-            statusStyle = new GUIStyle(GUI.skin.label);
-            statusStyle.alignment = TextAnchor.MiddleLeft;
-            statusStyle.stretchWidth = true;
-            statusStyle.normal.textColor = Color.white;
-
-            frozenStyle = new GUIStyle(GUI.skin.label);
-            frozenStyle.alignment = TextAnchor.MiddleLeft;
-            frozenStyle.stretchWidth = true;
-            frozenStyle.normal.textColor = Color.cyan;
-
-            StatusOKStyle = new GUIStyle(GUI.skin.label);
-            StatusOKStyle.alignment = TextAnchor.MiddleLeft;
-            StatusOKStyle.stretchWidth = true;
-            StatusOKStyle.normal.textColor = Color.green;
-
-            StatusWarnStyle = new GUIStyle(GUI.skin.label);
-            StatusWarnStyle.alignment = TextAnchor.MiddleLeft;
-            StatusWarnStyle.stretchWidth = true;
-            StatusWarnStyle.normal.textColor = Color.yellow;
-
-            StatusRedStyle = new GUIStyle(GUI.skin.label);
-            StatusRedStyle.alignment = TextAnchor.MiddleLeft;
-            StatusRedStyle.stretchWidth = true;
-            StatusRedStyle.normal.textColor = Color.red;
-
-            resizeStyle = new GUIStyle(GUI.skin.button);
-            resizeStyle.alignment = TextAnchor.MiddleCenter;
-            resizeStyle.padding = new RectOffset(1, 1, 1, 1);
-
-            ButtonStyle = new GUIStyle(GUI.skin.toggle);
-            ButtonStyle.margin.top = 0;
-            ButtonStyle.margin.bottom = 0;
-            ButtonStyle.padding.top = 0;
-            ButtonStyle.padding.bottom = 0;
-
-            GUIContent closeContent = new GUIContent("X", "Close Window");
-            Rect closeRect = new Rect(DFKACwindowPos.width - 17, 4, 16, 16);
-            if (GUI.Button(closeRect, closeContent))
+            GUIContent closeContent = new GUIContent(Textures.BtnRedCross, "Close Window");
+            Rect closeRect = new Rect(DFKACwindowPos.width - 21, 4, 16, 16);
+            if (GUI.Button(closeRect, closeContent, Textures.ClosebtnStyle))
             {
                 showKACGUI = false;
                 return;
             }
 
-            //this.Log_Debug("start WindowKAC ModKacAlarm active=" + ModKACAlarm);
+            // Utilities.Log_Debug("start WindowKAC ModKacAlarm active=" + ModKACAlarm);
 
             //Draw the alarms that KAC has that are for the CURRENT Vessel ONLY, so ONLY in FLIGHT mode.
             GUIscrollViewVectorKAC = GUILayout.BeginScrollView(GUIscrollViewVectorKAC, false, false);
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Name", sectionTitleStyle, GUILayout.Width(KACtxtWdthName));
-            GUILayout.Label("Alarm Type", sectionTitleStyle, GUILayout.Width(KACtxtWdthAtyp));
-            GUILayout.Label("Time Remain.", sectionTitleStyle, GUILayout.Width(KACtxtWdthATme));
+            GUILayout.Label(new GUIContent("Name", "Alarm Name"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthName));
+            GUILayout.Label(new GUIContent("Alarm Type", "KAC Alarm Type"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthAtyp));
+            GUILayout.Label(new GUIContent("Time Remain.", "Time remaining before Alarm is triggered"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthATme));
             GUILayout.EndHorizontal();
             if (KACWrapper.KAC.Alarms.Count == 0)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("There are currently no KAC alarms associated to a DeepFreeze vessel", frozenStyle);
+                GUILayout.Label("There are currently no KAC alarms associated to a DeepFreeze vessel", Textures.frozenStyle);
                 GUILayout.EndHorizontal();
             }
             else
@@ -1071,6 +931,10 @@ namespace DF
                 foreach (KACWrapper.KACAPI.KACAlarm alarm in KACWrapper.KAC.Alarms)
                 {
                     //Only show KAC alarms that are in the DeepFreeze known vessels list. (IE: vessels that have a freezer)
+                    if (alarm.VesselID == "" || alarm.AlarmType == KACWrapper.KACAPI.AlarmTypeEnum.Crew)
+                    {
+                        continue;
+                    }
                     Guid tmpid = new Guid(alarm.VesselID);
                     if (DeepFreeze.Instance.DFgameSettings.knownVessels.ContainsKey(tmpid))
                     {
@@ -1079,31 +943,31 @@ namespace DF
 
                         if (TmeRemaining <= 5)
                         {
-                            GUILayout.Label(alarm.Name, StatusWarnStyle, GUILayout.Width(KACtxtWdthName));
-                            GUILayout.Label(alarm.AlarmType.ToString(), StatusWarnStyle, GUILayout.Width(KACtxtWdthAtyp));
-                            GUILayout.Label(Utilities.FormatDateString(TmeRemaining), StatusWarnStyle, GUILayout.Width(KACtxtWdthATme));
+                            GUILayout.Label(alarm.Name, Textures.StatusWarnStyle, GUILayout.Width(KACtxtWdthName));
+                            GUILayout.Label(alarm.AlarmType.ToString(), Textures.StatusWarnStyle, GUILayout.Width(KACtxtWdthAtyp));
+                            GUILayout.Label(Utilities.FormatDateString(TmeRemaining), Textures.StatusWarnStyle, GUILayout.Width(KACtxtWdthATme));
                         }
                         else
                         {
-                            GUILayout.Label(alarm.Name, statusStyle, GUILayout.Width(KACtxtWdthName));
-                            GUILayout.Label(alarm.AlarmType.ToString(), statusStyle, GUILayout.Width(KACtxtWdthAtyp));
-                            GUILayout.Label(Utilities.FormatDateString(TmeRemaining), statusStyle, GUILayout.Width(KACtxtWdthATme));
+                            GUILayout.Label(alarm.Name, Textures.statusStyle, GUILayout.Width(KACtxtWdthName));
+                            GUILayout.Label(alarm.AlarmType.ToString(), Textures.statusStyle, GUILayout.Width(KACtxtWdthAtyp));
+                            GUILayout.Label(Utilities.FormatDateString(TmeRemaining), Textures.statusStyle, GUILayout.Width(KACtxtWdthATme));
                         }
-                        //this.Log_Debug("Show alarm  from KAC " + alarm.ID + " " + alarm.Name + " " + alarm.VesselID);
+                        // Utilities.Log_Debug("Show alarm  from KAC " + alarm.ID + " " + alarm.Name + " " + alarm.VesselID);
 
                         //Option to delete each alarm
                         if (ModKACAlarm || (DFInstalledMods.IsRTInstalled && !DFInstalledMods.RTVesselConnected(tmpid)))
                         {
                             //If a modify is in progress we turn off the delete button
                             GUI.enabled = false;
-                            GUILayout.Button("Delete", GUILayout.Width(50));
+                            GUILayout.Button(new GUIContent("Delete", "Delete this KAC alarm completely"), GUILayout.Width(50));
                             GUI.enabled = true;
-                            //this.Log_Debug("Delete button disabled");
+                            // Utilities.Log_Debug("Delete button disabled");
                         }
                         else
                         {
                             if (TmeRemaining <= 0) GUI.enabled = false;
-                            if (GUILayout.Button("Delete", GUILayout.Width(50)))
+                            if (GUILayout.Button(new GUIContent("Delete", "Delete this KAC alarm completely"), GUILayout.Width(50)))
                             {
                                 KACWrapper.KAC.DeleteAlarm(alarm.ID);
                             }
@@ -1116,14 +980,14 @@ namespace DF
                             if (KACalarmMod.ID != alarm.ID) //If it isn't this alarm we disable the button
                             {
                                 GUI.enabled = false;
-                                GUILayout.Button("Modify", GUILayout.Width(50));
+                                GUILayout.Button(new GUIContent("Modify", "Modify this Alarm"), GUILayout.Width(50));
                                 GUI.enabled = true;
-                                //this.Log_Debug("Modify button disabled");
+                                // Utilities.Log_Debug("Modify button disabled");
                             }
                             else //We are modifying an alarm and it's this one. So we draw a SAVE and Cancel button to save/cancel changes.
                             {
-                                //this.Log_Debug("mod in progress and it's this one, change to Save/Cancel");
-                                if (GUILayout.Button("Save", GUILayout.Width(50)))
+                                // Utilities.Log_Debug("mod in progress and it's this one, change to Save/Cancel");
+                                if (GUILayout.Button(new GUIContent("Save", "Save Alarm Changes"), GUILayout.Width(50)))
                                 {
                                     if (DFInstalledMods.IsRTInstalled && !DFInstalledMods.RTVesselConnected(tmpid))
                                     {
@@ -1135,29 +999,29 @@ namespace DF
                                         {
                                             DFIntMemory.Instance.ModifyKACAlarm(KACalarmMod, KACAlarm_FrzKbls, KACAlarm_ThwKbls);
                                             ScreenMessages.PostScreenMessage("DeepFreeze Alarm changes Saved.", 5.0f, ScreenMessageStyle.UPPER_CENTER);
-                                            //this.Log_Debug("DF KAC Modified alarm " + KACalarmMod.ID + " " + KACalarmMod.Name);
+                                            // Utilities.Log_Debug("DF KAC Modified alarm " + KACalarmMod.ID + " " + KACalarmMod.Name);
                                         }
                                         else
                                         {
                                             ScreenMessages.PostScreenMessage("DeepFreeze Cannot Save alarm changes, Time is up.", 5.0f, ScreenMessageStyle.UPPER_CENTER);
-                                            this.Log_Debug("DF KAC Couldn't save Modified alarm time is up");
+                                            Utilities.Log_Debug("DF KAC Couldn't save Modified alarm time is up");
                                         }
                                     }
                                     ModKACAlarm = false;
                                 }
-                                if (GUILayout.Button("Cancel", GUILayout.Width(50)))
+                                if (GUILayout.Button(new GUIContent("Cancel", "Cancel any changes"), GUILayout.Width(50)))
                                 {
-                                    //this.Log_Debug("User cancelled mod");
+                                    // Utilities.Log_Debug("User cancelled mod");
                                     ModKACAlarm = false;
                                 }
                                 GUILayout.EndHorizontal();
                                 GUIscrollViewVectorKACKerbals = GUILayout.BeginScrollView(GUIscrollViewVectorKACKerbals, false, false, GUILayout.MaxHeight(100f));
                                 GUILayout.BeginVertical();
                                 GUILayout.BeginHorizontal();
-                                GUILayout.Label("Name", sectionTitleStyle, GUILayout.Width(KACtxtWdthKName));
-                                GUILayout.Label("Trait", sectionTitleStyle, GUILayout.Width(KACtxtWdthKTyp));
-                                GUILayout.Label("Thaw", sectionTitleStyle, GUILayout.Width(KACtxtWdthKTg1));
-                                GUILayout.Label("Freeze", sectionTitleStyle, GUILayout.Width(KACtxtWdthKTg2));
+                                GUILayout.Label(new GUIContent("Name", "The Kerbals Name"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthKName));
+                                GUILayout.Label(new GUIContent("Trait", "The Kerbals Profession"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthKTyp));
+                                GUILayout.Label(new GUIContent("Thaw", "Thaw this kerbal on alarm activation"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthKTg1));
+                                GUILayout.Label(new GUIContent("Freeze", "Freeze this kerbal on alarm activation"), Textures.sectionTitleLeftStyle, GUILayout.Width(KACtxtWdthKTg2));
                                 GUILayout.EndHorizontal();
                                 //Build the Crew list for the alarm and allow modifications
                                 List<KeyValuePair<uint, PartInfo>> frzrs = DeepFreeze.Instance.DFgameSettings.knownFreezerParts.Where(a => a.Value.vesselID == tmpid).ToList();
@@ -1170,10 +1034,10 @@ namespace DF
                                         GUILayout.BeginHorizontal();
                                         bool ThawCrew = KACAlarm_ThwKbls.Contains(frzr.Value.crewMembers[i]);
                                         bool FrzCrew = KACAlarm_FrzKbls.Contains(frzr.Value.crewMembers[i]);
-                                        GUILayout.Label(frzr.Value.crewMembers[i], statusStyle, GUILayout.Width(KACtxtWdthKName));
-                                        GUILayout.Label(frzr.Value.crewMemberTraits[i], statusStyle, GUILayout.Width(KACtxtWdthKTyp));
+                                        GUILayout.Label(frzr.Value.crewMembers[i], Textures.statusStyle, GUILayout.Width(KACtxtWdthKName));
+                                        GUILayout.Label(frzr.Value.crewMemberTraits[i], Textures.statusStyle, GUILayout.Width(KACtxtWdthKTyp));
                                         if (FrzCrew) GUI.enabled = false;
-                                        ThawCrew = GUILayout.Toggle(ThawCrew, "", ButtonStyle, GUILayout.Width(KACtxtWdthKTg1));
+                                        ThawCrew = GUILayout.Toggle(ThawCrew, "", Textures.ButtonStyle, GUILayout.Width(KACtxtWdthKTg1));
                                         GUI.enabled = true;
                                         if (ThawCrew)
                                         {
@@ -1190,7 +1054,7 @@ namespace DF
                                             }
                                         }
                                         if (ThawCrew) GUI.enabled = false;
-                                        FrzCrew = GUILayout.Toggle(FrzCrew, "", ButtonStyle, GUILayout.Width(KACtxtWdthKTg2));
+                                        FrzCrew = GUILayout.Toggle(FrzCrew, "", Textures.ButtonStyle, GUILayout.Width(KACtxtWdthKTg2));
                                         GUI.enabled = true;
 
                                         if (FrzCrew)
@@ -1217,10 +1081,10 @@ namespace DF
                                         GUILayout.BeginHorizontal();
                                         bool ThawCrew = KACAlarm_ThwKbls.Contains(crew.Key);
                                         bool FrzCrew = KACAlarm_FrzKbls.Contains(crew.Key);
-                                        GUILayout.Label(crew.Key, frozenStyle, GUILayout.Width(KACtxtWdthKName));
-                                        GUILayout.Label(crew.Value.experienceTraitName, frozenStyle, GUILayout.Width(KACtxtWdthKTyp));
+                                        GUILayout.Label(crew.Key, Textures.frozenStyle, GUILayout.Width(KACtxtWdthKName));
+                                        GUILayout.Label(crew.Value.experienceTraitName, Textures.frozenStyle, GUILayout.Width(KACtxtWdthKTyp));
                                         if (FrzCrew) GUI.enabled = false;
-                                        ThawCrew = GUILayout.Toggle(ThawCrew, "", ButtonStyle, GUILayout.Width(KACtxtWdthKTg1));
+                                        ThawCrew = GUILayout.Toggle(ThawCrew, "", Textures.ButtonStyle, GUILayout.Width(KACtxtWdthKTg1));
                                         GUI.enabled = true;
                                         if (ThawCrew)
                                         {
@@ -1237,7 +1101,7 @@ namespace DF
                                             }
                                         }
                                         if (ThawCrew) GUI.enabled = false;
-                                        FrzCrew = GUILayout.Toggle(FrzCrew, "", ButtonStyle, GUILayout.Width(KACtxtWdthKTg2));
+                                        FrzCrew = GUILayout.Toggle(FrzCrew, "", Textures.ButtonStyle, GUILayout.Width(KACtxtWdthKTg2));
                                         GUI.enabled = true;
                                         if (FrzCrew)
                                         {
@@ -1263,16 +1127,16 @@ namespace DF
                         }
                         else  // no modify is in progress so we draw modify buttons on all alarms
                         {
-                            //this.Log_Debug("no modify in progress so just show modify buttons on KAC alarm");
+                            // Utilities.Log_Debug("no modify in progress so just show modify buttons on KAC alarm");
                             if (TmeRemaining <= 0) GUI.enabled = false;
-                            if (GUILayout.Button("Modify", GUILayout.Width(50)))
+                            if (GUILayout.Button(new GUIContent("Modify", "Modify this Alarms settings"), GUILayout.Width(50)))
                             {
                                 KACalarmMod = alarm;
                                 KACAlarm_FrzKbls.Clear();
                                 KACAlarm_ThwKbls.Clear();
                                 string tmpnotes = DFIntMemory.Instance.ParseKACNotes(alarm.Notes, out KACAlarm_FrzKbls, out KACAlarm_ThwKbls);
                                 ModKACAlarm = true;
-                                //this.Log_Debug("Modify in progress " + alarm.ID);
+                                // Utilities.Log_Debug("Modify in progress " + alarm.ID);
                             }
                             GUI.enabled = true;
                         }
@@ -1283,26 +1147,19 @@ namespace DF
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
             GUILayout.Space(14);
-            GUIContent resizeContent = new GUIContent("R", "Resize Window");
+
+            GUIContent resizeContent = new GUIContent(Textures.BtnResize, "Resize Window");
             Rect resizeRect = new Rect(DFKACwindowPos.width - 17, DFKACwindowPos.height - 17, 16, 16);
-            GUI.Label(resizeRect, resizeContent, resizeStyle);
+            GUI.Label(resizeRect, resizeContent, Textures.ResizeStyle);
+            
             HandleResizeEventsKAC(resizeRect);
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.SetTooltipText();
             GUI.DragWindow();
         }
 
         private void windowVS(int id)
         {
-            //Init styles
-            sectionTitleStyle = new GUIStyle(GUI.skin.label);
-            sectionTitleStyle.alignment = TextAnchor.MiddleCenter;
-            sectionTitleStyle.stretchWidth = true;
-            sectionTitleStyle.fontStyle = FontStyle.Bold;
-
-            statusStyle = new GUIStyle(GUI.skin.label);
-            statusStyle.alignment = TextAnchor.MiddleCenter;
-            statusStyle.stretchWidth = true;
-            statusStyle.normal.textColor = Color.white;
-
             //Pause the game
             TimeWarp.SetRate(0, true);
             if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ready && !FlightDriver.Pause)
@@ -1311,7 +1168,7 @@ namespace DF
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             //GUILayout.Box(new GUIContent("ElectricCharge is running out on vessel, you must switch to the vessel now.", "Switch to DeepFreeze vessel required"), statusStyle, GUILayout.Width(280));
-            GUILayout.Box(new GUIContent(showSwitchVesselStr, showSwitchVesselStr), statusStyle, GUILayout.Width(320));
+            GUILayout.Box(new GUIContent(showSwitchVesselStr, showSwitchVesselStr), Textures.statusStyle, GUILayout.Width(320));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
@@ -1324,7 +1181,7 @@ namespace DF
                 int intVesselidx = Utilities.getVesselIdx(switchVessel);
                 if (intVesselidx < 0)
                 {
-                    this.Log("Couldn't find the index for the vessel " + switchVessel.vesselName + "(" + switchVessel.id.ToString() + ")");
+                    Utilities.Log("Couldn't find the index for the vessel " + switchVessel.vesselName + "(" + switchVessel.id + ")");
                     showUnabletoSwitchVessel = true;
                 }
                 else
@@ -1351,29 +1208,20 @@ namespace DF
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.SetTooltipText();
             GUI.DragWindow();
         }
 
         private void windowVSF(int id)
         {
-            //Init styles
-            sectionTitleStyle = new GUIStyle(GUI.skin.label);
-            sectionTitleStyle.alignment = TextAnchor.MiddleCenter;
-            sectionTitleStyle.stretchWidth = true;
-            sectionTitleStyle.fontStyle = FontStyle.Bold;
-
-            statusStyle = new GUIStyle(GUI.skin.label);
-            statusStyle.alignment = TextAnchor.MiddleCenter;
-            statusStyle.stretchWidth = true;
-            statusStyle.normal.textColor = Color.white;
-
             TimeWarp.SetRate(0, true);
             if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ready)
                 FlightDriver.SetPause(true);
 
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Box(new GUIContent("Automatic Switch to vessel failed.\nPlease switch manually to vessel Immediately", "Switch to DeepFreeze vessel required"), statusStyle, GUILayout.Width(280));
+            GUILayout.Box(new GUIContent("Automatic Switch to vessel failed.\nPlease switch manually to vessel Immediately", "Switch to DeepFreeze vessel required"), Textures.statusStyle, GUILayout.Width(280));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
@@ -1388,6 +1236,8 @@ namespace DF
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+            if (DeepFreeze.Instance.DFsettings.ToolTips)
+                Utilities.SetTooltipText();
             GUI.DragWindow();
         }
 
@@ -1411,18 +1261,18 @@ namespace DF
                         // Flip the mouse Y so that 0 is at the top
                         float mouseY = Screen.height - Input.mousePosition.y;
 
-                        DFwindowPos.width = Mathf.Clamp(Input.mousePosition.x - DFwindowPos.x + (resizeRect.width / 2), 50, Screen.width - DFwindowPos.x);
-                        DFwindowPos.height = Mathf.Clamp(mouseY - DFwindowPos.y + (resizeRect.height / 2), 50, Screen.height - DFwindowPos.y);
-                        DFtxtWdthName = Mathf.Round((DFwindowPos.width - 28f) / 4.2f);
-                        DFtxtWdthProf = Mathf.Round((DFwindowPos.width - 28f) / 4.8f);
-                        DFtxtWdthVslN = Mathf.Round((DFwindowPos.width - 28f) / 3.5f);
-                        DFvslWdthName = Mathf.Round((DFwindowPos.width - 28f) / 4f);
-                        DFvslPrtName = Mathf.Round((DFwindowPos.width - 28f) / 6.3f);
-                        DFvslPrtTmp = Mathf.Round((DFwindowPos.width - 28f) / 11f);
-                        DFvslPrtElec = Mathf.Round((DFwindowPos.width - 28f) / 12.3f);
-                        DFvslAlarms = Mathf.Round((DFwindowPos.width - 28f) / 8f);
-                        DFvslLstUpd = Mathf.Round((DFwindowPos.width - 28f) / 5.5f);
-                        DFvslRT = Mathf.Round((DFwindowPos.width - 28f) / 12.3f);
+                        DFwindowPos.width = Mathf.Clamp(Input.mousePosition.x - DFwindowPos.x + resizeRect.width / 2, 50, Screen.width - DFwindowPos.x);
+                        DFwindowPos.height = Mathf.Clamp(mouseY - DFwindowPos.y + resizeRect.height / 2, 50, Screen.height - DFwindowPos.y);
+                        DFtxtWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
+                        DFtxtWdthProf = Mathf.Round((DFWINDOW_WIDTH - 28f) * .2f);
+                        DFtxtWdthVslN = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
+                        DFvslWdthName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .28f);
+                        DFvslPrtName = Mathf.Round((DFWINDOW_WIDTH - 28f) * .2f);
+                        DFvslPrtTmp = Mathf.Round((DFWINDOW_WIDTH - 28f) * .1f);
+                        DFvslPrtElec = Mathf.Round((DFWINDOW_WIDTH - 28f) * .1f);
+                        DFvslAlarms = Mathf.Round((DFWINDOW_WIDTH - 28f) * .12f);
+                        DFvslLstUpd = Mathf.Round((DFWINDOW_WIDTH - 28f) * .18f);
+                        DFvslRT = Mathf.Round((DFWINDOW_WIDTH - 28f) * .12f);
                     }
                     else
                     {
@@ -1431,6 +1281,38 @@ namespace DF
                 }
             }
         }
+
+        private void HandleResizeEventsCF(Rect resizeRect)
+        {
+            var theEvent = Event.current;
+            if (theEvent != null)
+            {
+                if (!mouseDownCF)
+                {
+                    if (theEvent.type == EventType.MouseDown && theEvent.button == 0 && resizeRect.Contains(theEvent.mousePosition))
+                    {
+                        mouseDownCF = true;
+                        theEvent.Use();
+                    }
+                }
+                else if (theEvent.type != EventType.Layout)
+                {
+                    if (Input.GetMouseButton(0))
+                    {
+                        // Flip the mouse Y so that 0 is at the top
+                        float mouseY = Screen.height - Input.mousePosition.y;
+
+                        CFwindowPos.width = Mathf.Clamp(Input.mousePosition.x - CFwindowPos.x + resizeRect.width / 2, 50, Screen.width - CFwindowPos.x);
+                        CFwindowPos.height = Mathf.Clamp(mouseY - CFwindowPos.y + resizeRect.height / 2, 50, Screen.height - CFwindowPos.y);
+                    }
+                    else
+                    {
+                        mouseDownCF = false;
+                    }
+                }
+            }
+        }
+
 
         private void HandleResizeEventsKAC(Rect resizeRect)
         {
@@ -1452,15 +1334,15 @@ namespace DF
                         // Flip the mouse Y so that 0 is at the top
                         float mouseY = Screen.height - Input.mousePosition.y;
 
-                        DFKACwindowPos.width = Mathf.Clamp(Input.mousePosition.x - DFKACwindowPos.x + (resizeRect.width / 2), 50, Screen.width - DFKACwindowPos.x);
-                        DFKACwindowPos.height = Mathf.Clamp(mouseY - DFKACwindowPos.y + (resizeRect.height / 2), 50, Screen.height - DFKACwindowPos.y);
-                        KACtxtWdthName = Mathf.Round((DFKACwindowPos.width - 38f) / 3.5f);
-                        KACtxtWdthAtyp = Mathf.Round((DFKACwindowPos.width - 38f) / 6f);
-                        KACtxtWdthATme = Mathf.Round((DFKACwindowPos.width - 38f) / 5f);
-                        KACtxtWdthKName = Mathf.Round((DFKACwindowPos.width - 48f) / 3f);
-                        KACtxtWdthKTyp = Mathf.Round((DFKACwindowPos.width - 48f) / 5f);
-                        KACtxtWdthKTg1 = Mathf.Round((DFKACwindowPos.width - 48f) / 6f);
-                        KACtxtWdthKTg2 = Mathf.Round((DFKACwindowPos.width - 48f) / 6f);
+                        DFKACwindowPos.width = Mathf.Clamp(Input.mousePosition.x - DFKACwindowPos.x + resizeRect.width / 2, 50, Screen.width - DFKACwindowPos.x);
+                        DFKACwindowPos.height = Mathf.Clamp(mouseY - DFKACwindowPos.y + resizeRect.height / 2, 50, Screen.height - DFKACwindowPos.y);
+                        KACtxtWdthName = Mathf.Round((KACWINDOW_WIDTH - 38f) * .2f);
+                        KACtxtWdthAtyp = Mathf.Round((KACWINDOW_WIDTH - 38f) * .1f);
+                        KACtxtWdthATme = Mathf.Round((KACWINDOW_WIDTH - 38f) * .2f);
+                        KACtxtWdthKName = Mathf.Round((KACWINDOW_WIDTH - 48f) * .2f);
+                        KACtxtWdthKTyp = Mathf.Round((KACWINDOW_WIDTH - 48f) * .2f);
+                        KACtxtWdthKTg1 = Mathf.Round((KACWINDOW_WIDTH - 48f) * .16f);
+                        KACtxtWdthKTg2 = Mathf.Round((KACWINDOW_WIDTH - 48f) * .16f);
                     }
                     else
                     {
@@ -1477,7 +1359,7 @@ namespace DF
         //Class Load and Save of global settings
         public void Load(ConfigNode globalNode)
         {
-            this.Log_Debug("DeepFreezeGUI Load");
+            Utilities.Log_Debug("DeepFreezeGUI Load");
             DFwindowPos.x = DeepFreeze.Instance.DFsettings.DFwindowPosX;
             DFwindowPos.y = DeepFreeze.Instance.DFsettings.DFwindowPosY;
             CFwindowPos.x = DeepFreeze.Instance.DFsettings.CFwindowPosX;
@@ -1491,6 +1373,7 @@ namespace DF
             Useapplauncher = DeepFreeze.Instance.DFsettings.UseAppLauncher;
             AutoRecoverFznKerbals = DeepFreeze.Instance.DFsettings.AutoRecoverFznKerbals;
             debugging = DeepFreeze.Instance.DFsettings.debugging;
+            ToolTips = DeepFreeze.Instance.DFsettings.ToolTips;
             ECreqdForFreezer = DeepFreeze.Instance.DFsettings.ECreqdForFreezer;
             fatalOption = DeepFreeze.Instance.DFsettings.fatalOption;
             comatoseTime = DeepFreeze.Instance.DFsettings.comatoseTime;
@@ -1503,13 +1386,13 @@ namespace DF
             heatamtMonitoringFrznKerbals = DeepFreeze.Instance.DFsettings.heatamtMonitoringFrznKerbals;
             heatamtThawFreezeKerbal = DeepFreeze.Instance.DFsettings.heatamtThawFreezeKerbal;
             TempinKelvin = DeepFreeze.Instance.DFsettings.TempinKelvin;
-            StripLightsOn = DeepFreeze.Instance.DFsettings.StripLightsActive;
-            this.Log_Debug("DeepFreezeGUI Load end");
+            StripLightsOn = DeepFreeze.Instance.DFsettings.StripLightsActive;            
+            Utilities.Log_Debug("DeepFreezeGUI Load end");
         }
 
         public void Save(ConfigNode globalNode)
         {
-            this.Log_Debug("DeepFreezeGUI Save");
+            Utilities.Log_Debug("DeepFreezeGUI Save");
             DeepFreeze.Instance.DFsettings.DFwindowPosX = DFwindowPos.x;
             DeepFreeze.Instance.DFsettings.DFwindowPosY = DFwindowPos.y;
             DeepFreeze.Instance.DFsettings.CFwindowPosX = CFwindowPos.x;
@@ -1519,6 +1402,7 @@ namespace DF
             DeepFreeze.Instance.DFsettings.UseAppLauncher = Useapplauncher;
             DeepFreeze.Instance.DFsettings.AutoRecoverFznKerbals = AutoRecoverFznKerbals;
             DeepFreeze.Instance.DFsettings.debugging = debugging;
+            DeepFreeze.Instance.DFsettings.ToolTips = ToolTips;
             DeepFreeze.Instance.DFsettings.ECreqdForFreezer = ECreqdForFreezer;
             DeepFreeze.Instance.DFsettings.fatalOption = fatalOption;
             DeepFreeze.Instance.DFsettings.comatoseTime = comatoseTime;
@@ -1532,7 +1416,8 @@ namespace DF
             DeepFreeze.Instance.DFsettings.heatamtMonitoringFrznKerbals = heatamtMonitoringFrznKerbals;
             DeepFreeze.Instance.DFsettings.TempinKelvin = TempinKelvin;
             DeepFreeze.Instance.DFsettings.StripLightsActive = StripLightsOn;
-            this.Log_Debug("DeepFreezeGUI Save end");
+            Utilities.debuggingOn = debugging;
+            Utilities.Log_Debug("DeepFreezeGUI Save end");
         }
 
         #endregion Savable

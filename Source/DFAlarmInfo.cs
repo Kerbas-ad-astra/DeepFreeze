@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using RSTUtils;
 
 namespace DF
 {
@@ -47,23 +48,31 @@ namespace DF
         internal AlarmInfo(string Name, Guid vesselID)
         {
             this.Name = Name;
-            this.VesselID = vesselID;
-            this.FrzKerbals = new List<string>();
-            this.ThwKerbals = new List<string>();
+            VesselID = vesselID;
+            FrzKerbals = new List<string>();
+            ThwKerbals = new List<string>();
         }
 
         internal static AlarmInfo Load(ConfigNode node)
         {
             Guid vesselID = Utilities.GetNodeValue(node, "vesselID");
-            string Name = Utilities.GetNodeValue(node, "Name", string.Empty);
+            string Name = "";
+            node.TryGetValue("Name", ref Name);
+            
             AlarmInfo info = new AlarmInfo(Name, vesselID);
+
             info.AlarmType = Utilities.GetNodeValue(node, "AlarmType", KACWrapper.KACAPI.AlarmTypeEnum.Raw);
-            info.Notes = Utilities.GetNodeValue(node, "Notes", string.Empty);
-            info.AlarmTime = Utilities.GetNodeValue(node, "AlarmTime", 0d);
-            info.AlarmMargin = Utilities.GetNodeValue(node, "AlarmMargin", 0d);
-            info.AlarmExecute = Utilities.GetNodeValue(node, "AlarmExecute", false);
-            string frzkbllst = Utilities.GetNodeValue(node, "FrzKerbals", string.Empty);
-            string thwkbllst = Utilities.GetNodeValue(node, "ThwKerbals", string.Empty);
+            node.TryGetValue("Notes", ref info.Notes);
+            node.TryGetValue("AlarmTime", ref info.AlarmTime);
+            node.TryGetValue("AlarmMargin", ref info.AlarmMargin);
+            node.TryGetValue("AlarmExecute", ref info.AlarmExecute);
+
+
+            string frzkbllst = "";
+            node.TryGetValue("FrzKerbals", ref frzkbllst);
+            string thwkbllst = "";
+            node.TryGetValue("ThwKerbals", ref thwkbllst);
+            
             string[] frzStrings = frzkbllst.Split(',');
             if (frzStrings.Length > 0)
             {
